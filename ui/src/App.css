@@ -1,18 +1,32 @@
 .App {
   width: 100%;
-  text-align: center;
 }
 
 .App-header {
+  text-align: center;
   background-color: white;
   font-size: calc(10px + 2vmin);
   color: rgb(0, 0, 0);
+  padding: 16px;
 }
 
-.Books-Library {
+.Library-title {
+  margin: 16px;
+}
+
+.Books-library {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  row-gap: 16px;
+}
+
+.All-books {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
+  row-gap: 32px;
+  column-gap: 32px;
 }
 
 .App-link {

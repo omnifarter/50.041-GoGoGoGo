@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { Modal, Button, Form } from 'react-bootstrap';
 
+import './Borrow.css';
+
 const Borrow = ({ show, book, closeBorrow, confirmBorrow }) => {
   const [id, setId] = useState(-1)
 

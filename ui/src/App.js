@@ -4,6 +4,9 @@ import './App.css';
 import Book from './components/Book';
 import Borrow from './components/Borrow';
 
+import { Button } from 'react-bootstrap'
+import MyBooks from './components/MyBooks';
+
 // hardcoded data for display
 // TODO: remove once backend is connected
 const books = [{
@@ -30,10 +33,11 @@ const emptyBook = {
   available: true,
 }
 
-// process.env.REACT_APP_SERVER_URL
+const REACT_APP_SERVER_URL = process.env.REACT_APP_SERVER_URL
 
 function App() {
   const [borrow, setBorrow] = useState(false)
+  const [myBooks, setMyBooks] = useState(false)
   const [selectedBook, setSelectedBook] = useState(emptyBook)
   
   // open the borrow modal
@@ -50,10 +54,23 @@ function App() {
     setBorrow(false)
   }
 
+  // open the myBooks modal
+  const openMyBooks = () => {
+    console.log('open my books modal...')
+    setMyBooks(true)
+  }
+
+  // close the myBooks modal
+  const closeMyBooks = () => {
+    console.log('close my books modal...')
+    setMyBooks(false)
+  }
+
   // parameter: client id
   const confirmBorrow = (id) => {
     // TODO: call API to backend to borrow book
     console.log('borrowing book...')
+    console.log('')
     console.log({
       clientID: id,
       bookID: selectedBook.id
@@ -72,12 +89,19 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>GoGoGoGo - Digital Library</h1>
+        <h1 className='Library-title'>GoGoGoGo - Digital Library</h1>
+        <Button variant="info" onClick={() => openMyBooks()}>View My Books</Button>
       </header>
-      <div className='Books-Library'>
-        {books.map((b) => b.available && <Book key={b.id} book={b} openBook={openBook} />)}
+
+      <div className="Books-library">
+        <h4>View All Available Books</h4>
+        <div className='All-books'>  
+          {books.map((b) => b.available && <Book key={b.id} book={b} openBook={openBook} />)}
+        </div>
       </div>
+      
       <Borrow show={borrow} book={selectedBook} closeBorrow={closeBorrow} confirmBorrow={confirmBorrow} />
+      <MyBooks show={myBooks} closeMyBooks={closeMyBooks} myBooks={books} />
     </div>
   );
 }

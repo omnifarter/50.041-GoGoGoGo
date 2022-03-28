@@ -1,5 +1,4 @@
 .Book-item{
-    margin: 16px;
     width: fit-content;
     display: flex;
     flex-direction: column;

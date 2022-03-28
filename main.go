@@ -2,8 +2,12 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
+
+	// gin library
+	"github.com/gin-gonic/gin"
 )
 
 // node struct
@@ -262,8 +266,46 @@ func initalise(wg *sync.WaitGroup) map[int]*Node {
 	}
 	return nodeEntries
 }
+
+// function set up the backend router
+func startServer() {
+	router := gin.Default()
+
+	// create API route group - library functions
+	api := router.Group("/")
+	{
+		// GET Route: /all
+		api.GET("/all", func(ctx *gin.Context) {
+			ctx.JSON(200, gin.H{"books": "testing"})
+		})
+	}
+	// create API route group - user
+	api = router.Group("/user")
+	{
+
+		// PUT Route: /borrow
+		api.PUT("/borrow", func(ctx *gin.Context) {
+			ctx.JSON(200, gin.H{"status": "borrowed"})
+		})
+
+		// PUT Route: /return
+		api.PUT("/return", func(ctx *gin.Context) {
+			ctx.JSON(200, gin.H{"status": "returned"})
+		})
+	}
+
+	router.NoRoute(func(ctx *gin.Context) { ctx.JSON(http.StatusNotFound, gin.H{}) })
+
+	// Start listening and serving requests
+	router.Run(":8080")
+}
+
 func main() {
-	fmt.Println("Initialising")
+	fmt.Println("Set up the backend server")
+
+	startServer()
+
+	fmt.Println("Initialising nodes")
 	wg := new(sync.WaitGroup)
 	nodeEntries := initalise(wg)
 

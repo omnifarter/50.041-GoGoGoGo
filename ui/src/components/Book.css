@@ -1,0 +1,17 @@
+.Book-item{
+    margin: 16px;
+    width: fit-content;
+    display: flex;
+    flex-direction: column;
+}
+
+.Book-cover {
+    border-radius: 10px;
+    height: 200px;
+}
+
+.Book-title{
+    margin-top: 8px;
+    margin-bottom: 16px;
+    font-size: 1rem;
+}

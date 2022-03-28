@@ -30,6 +30,8 @@ const emptyBook = {
   available: true,
 }
 
+// process.env.REACT_APP_SERVER_URL
+
 function App() {
   const [borrow, setBorrow] = useState(false)
   const [selectedBook, setSelectedBook] = useState(emptyBook)

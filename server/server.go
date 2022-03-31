@@ -1,38 +1,36 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 
-	"gogogogo/nodes"
+	nodes "gogogogo/nodes"
 	// gin library
 	"github.com/gin-gonic/gin"
+	// cors
+	"github.com/gin-contrib/cors"
 )
 
-type BorrowBody struct {
-	BookId int `json:"bookId"`
-	UserId int `json:"userId"`
-}
 
-func StartServer(nodeEntries map[int]*nodes.Node) {
+func StartServer(nodeEntries map[int]*nodes.Node, manager *nodes.Manager) {
 	router := gin.Default()
+
+	// cors setting
+	// router.Use(cors.New(cors.Config{
+	// 	AllowOrigins:     []string{"https://localhost:3000"},
+	// 	AllowMethods:     []string{"GET", "PUT"},
+	// 	AllowHeaders:     []string{"Origin"},
+	// 	ExposeHeaders:    []string{"Content-Length"},
+	// 	AllowCredentials: true,
+	// }))
+	router.Use(cors.Default())
 
 	// create API route group - library functions
 	api := router.Group("/")
 	{
 		// GET Route: /all
 		api.GET("/all", func(ctx *gin.Context) {
-			nodeEntries[nodes.COORDINATOR].ClientRequestChannel <- nodes.Request{
-				Id:          2,
-				ClientID:    0,
-				RequestType: nodes.GET,
-				BookID:      0, //TODO: implement a way to get all IDs
-			}
-
-			data := <-nodeEntries[nodes.COORDINATOR].ClientResponseChannel
-			fmt.Println(data)
+			data := manager.GetAllKeys()
 			ctx.JSON(200, gin.H{"data": data.Data})
-
 		})
 	}
 	// create API route group - user
@@ -41,14 +39,8 @@ func StartServer(nodeEntries map[int]*nodes.Node) {
 
 		// PUT Route: /borrow
 		api.PUT("/borrow", func(ctx *gin.Context) {
-			var borrowBody BorrowBody
+			var borrowBody nodes.BorrowBody
 			ctx.BindJSON(&borrowBody)
-			nodeEntries[nodes.COORDINATOR].ClientRequestChannel <- nodes.Request{
-				Id:          0,
-				ClientID:    borrowBody.UserId,
-				RequestType: nodes.PUT,
-				BookID:      borrowBody.BookId,
-			}
 
 			ctx.JSON(200, gin.H{"status": "borrowed"})
 		})

@@ -3,7 +3,8 @@ const BACKEND_URL = "http://localhost:8080"
 export const getAllBooks = async () => {
     const response = await fetch(`${BACKEND_URL}/all`,
     {
-        method:"GET"
+        method:"GET",
+        // mode: 'cors',
     })
     if (response.ok) {
         return await response.json()
@@ -14,7 +15,7 @@ export const getAllBooks = async () => {
 
 export const borrowBook = async (bookId,userId) => {
     const response = await fetch(`${BACKEND_URL}/user/borrow`,{
-        method:"POST",
+        method:"PUT",
         body:{
             userId,
             bookId

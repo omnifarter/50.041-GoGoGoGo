@@ -107,7 +107,16 @@ func (n *Node) listen(wg *sync.WaitGroup) {
 		select {
 		// listening for read opertaions
 		case read_msg := <-n.readChannel:
-			fmt.Printf("Node %d: Received READ message from Node %d\n", read_msg.sender, read_msg.receiver)
+			fmt.Printf("Node %d: Received READ message from Node %d\n", n.id, read_msg.sender)
+			// // Simulating node crash
+			// if n.id == 1 {
+			// 	fmt.Printf("Node %d: CRASHED\n", n.id)
+			// 	time.Sleep(1 * time.Second)
+			// }
+
+			// reply ACK sender
+			fmt.Printf("Node %d: Sending ACK message to Node %d\n", n.id, read_msg.sender)
+			n.ring[read_msg.sender].replyChannel <- ReplyMessage{n.id, read_msg.sender}
 			if _, ok := read_msg.databaseEntryMap[n.id]; ok {
 				// message has traversed the ring once
 				// compare which is most updated
@@ -140,18 +149,15 @@ func (n *Node) listen(wg *sync.WaitGroup) {
 				case reply_msg := <-n.replyChannel:
 					fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
 				case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
-					fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, read_msg.receiver) //TODO:this shouldn't run if ACK is received
+					fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, read_msg.receiver)
 				}
 			}
-			// reply ACK sender
-			fmt.Printf("Node %d: Sending REPLY message to Node %d\n", n.id, read_msg.sender)
-			n.ring[read_msg.sender].replyChannel <- ReplyMessage{n.id, read_msg.sender}
 
 		// listening for write operations
 		case write_msg := <-n.writeChannel:
 			fmt.Printf("Node %d: Received WRITE operation \n", n.id)
 			n.database[write_msg.key] = write_msg.value
-			// reply ACK
+			// reply ACK to sender
 			fmt.Printf("Node %d: Sending REPLY message to Node %d\n", n.id, write_msg.sender)
 			n.ring[write_msg.sender].replyChannel <- ReplyMessage{n.id, write_msg.sender}
 
@@ -180,9 +186,13 @@ func (n *Node) listen(wg *sync.WaitGroup) {
 					fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
 				case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
 					fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, readMsg.receiver) //TODO:this shouldn't run if ACK is received
+					// node failed -> rehash
 				}
 			} else {
 				fmt.Printf("Node %d: Received a PUT request from Client %d \n", n.id, client_msg.ClientID)
+				// Node replies ACK client
+				fmt.Printf("Node %d: Sending REPLY to Cliet\n", n.id)
+				n.ClientResponseChannel <- Response{} // Empty response means REPLY ACK
 				// write the value for key specified + increment the clock
 				newValue := client_msg.ClientID
 				newEntry := DatabaseEntry{
@@ -211,9 +221,6 @@ func (n *Node) listen(wg *sync.WaitGroup) {
 					}
 				}
 				fmt.Printf("Node %d: Updating of Value for Book ID has been completed \n", n.id)
-				// Node replies ACK client
-				fmt.Printf("Node %d: Sending REPLY to Cliet\n", n.id)
-				n.ClientResponseChannel <- Response{} // Empty response means REPLY ACK
 			}
 
 		// listening for election
@@ -241,6 +248,7 @@ func InitaliseNodes(wg *sync.WaitGroup) map[int]*Node {
 			ClientResponseChannel: make(chan Response),
 			readChannel:           make(chan ReadMessage),
 			writeChannel:          make(chan WriteMessage),
+			replyChannel:          make(chan ReplyMessage),
 			killChannel:           make(chan bool),
 			// electChannel:          make(chan Election),
 			failed: false,

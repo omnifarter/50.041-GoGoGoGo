@@ -10,7 +10,6 @@ import (
 	"github.com/gin-contrib/cors"
 )
 
-
 func StartServer(nodeEntries map[int]*nodes.Node, manager *nodes.Manager) {
 	router := gin.Default()
 

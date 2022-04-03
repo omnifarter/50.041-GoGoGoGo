@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	nodes "gogogogo/nodes"
-	server "gogogogo/server"
+	"gogogogo/server"
 	"sync"
 )
 

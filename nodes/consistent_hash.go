@@ -1,17 +1,20 @@
 package nodes
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"sort"
+
+	"github.com/google/uuid"
 )
 
 // create hash function
 func (c *ConsistentHash) NewHash(data string) uint32 {
-	// convert the data to byte[]
-	byteData := []byte(data)
+	hash := sha256.New()
+	hash.Write([]byte(data))
 
-	return binary.BigEndian.Uint32(byteData)
+	return binary.BigEndian.Uint32(hash.Sum(nil))
 }
 
 type ConsistentHash struct {
@@ -36,29 +39,31 @@ type ConsistentHash struct {
 }
 
 // create a new ConsistentHash object
-func (c *ConsistentHash) CreateConsistentHash(nodes map[int]*Node, keys []string) *ConsistentHash {
+func CreateConsistentHash(nodes map[int]*Node, keys []string) *ConsistentHash {
 	consistent := &ConsistentHash{
-		ringNodes: make(map[int]*Node),
+		ringNodes:   make(map[int]*Node),
+		nodeToKeys:  make(map[int][]string),
+		keysToNodes: make(map[string]*Node),
 	}
 
 	// add nodes to hash ring
 	for id, node := range nodes {
-		c.addNewNode(node)
-		c.nodeToKeys[id] = make([]string, 0)
+		consistent.addNewNode(node)
+		consistent.nodeToKeys[id] = make([]string, 0)
 	}
 
 	// generate mapping between keys and nodes
 	if len(keys) > 0 {
 		for _, key := range keys {
 			// get closest node
-			closestNode := c.getClosestNode(key)
+			closestNode := consistent.getClosestNode(key)
 
 			// update mapping
-			c.keysToNodes[key] = closestNode
+			consistent.keysToNodes[key] = closestNode
 
-			keysList := c.nodeToKeys[closestNode.id]
+			keysList := consistent.nodeToKeys[closestNode.id]
 			keysList = append(keysList, key)
-			c.nodeToKeys[closestNode.id] = keysList
+			consistent.nodeToKeys[closestNode.id] = keysList
 		}
 	}
 
@@ -67,8 +72,10 @@ func (c *ConsistentHash) CreateConsistentHash(nodes map[int]*Node, keys []string
 
 // function to add a new node to the hash ring
 func (c *ConsistentHash) addNewNode(node *Node) {
-	nodeString := fmt.Sprint("Node-", node.id)
+	randomUUID := uuid.New()
+	nodeString := fmt.Sprintf("Node-%v-%v", node.id, randomUUID)
 	hashNode := int(c.NewHash(nodeString))
+	fmt.Println(nodeString, hashNode)
 	c.hashes = append(c.hashes, hashNode)
 	c.ringNodes[hashNode] = node
 

@@ -6,7 +6,7 @@ import (
 )
 
 type Manager struct {
-	consistentHashRing ConsistentHash
+	consistentHashRing *ConsistentHash
 	ringStructure      map[int]*Node // this maps the machine ID to its node
 }
 
@@ -80,4 +80,5 @@ func (m *Manager) PutKey(borrowBody BorrowBody) {
 func (m *Manager) CreateNewHash(keys []string, servers map[int]*Node) {
 	//TODO: implement consistent hashing algorithm if we have time
 	m.consistentHashRing = CreateConsistentHash(servers, keys)
+	fmt.Println(m.consistentHashRing)
 }

@@ -6,23 +6,8 @@ import (
 )
 
 type Manager struct {
-	/*This maps the db key to a node
-	0 -> Node A
-	1 -> Node B
-	2 -> Node C
-	...
-	*/
-	keyMapping map[int]*Node
-
-	/*This keeps track of each node's keys
-	Node A -> [0,1,2]
-	Node B -> [1,2,3]
-	...
-	*/
-	nodeMapping map[*Node][]int
-
-	ringStructure map[int]*Node // this maps the machine ID to its node
-
+	consistentHashRing ConsistentHash
+	ringStructure      map[int]*Node // this maps the machine ID to its node
 }
 
 type BorrowBody struct {
@@ -32,7 +17,7 @@ type BorrowBody struct {
 
 func InitialiseManager(nodeEntries map[int]*Node) Manager {
 	manager := Manager{ringStructure: nodeEntries}
-	// manager.CreateNewHash()
+	manager.CreateNewHash(make([]string, 0), nodeEntries)
 
 	return manager
 }
@@ -92,34 +77,7 @@ func (m *Manager) PutKey(borrowBody BorrowBody) {
 	}
 }
 
-func (m *Manager) CreateNewHash(keys []int, servers []*Node) {
+func (m *Manager) CreateNewHash(keys []string, servers map[int]*Node) {
 	//TODO: implement consistent hashing algorithm if we have time
-	nodeMapping := make(map[*Node][]int)
-	keyMapping := make(map[int]*Node)
-
-	n := len(servers)
-
-	for i, k := range keys {
-		keyholder := i % n
-
-		nodeMapping[servers[keyholder]] = append(nodeMapping[servers[keyholder]], k)
-
-		keyMapping[k] = servers[keyholder]
-	}
-
-	m.nodeMapping = nodeMapping
-	m.keyMapping = keyMapping
-}
-
-func (m *Manager) addNewNodeHash() {
-	//TODO
-}
-
-func (m *Manager) RemoveNewNodeHash() {
-	//TODO
-}
-func (m *Manager) updateNewCoordinators() {
-	// 	for key,node := range(m.coordinatorMapping){ // loop through each key we have, and update nodes about this.
-
-	// 	}
+	m.consistentHashRing = CreateConsistentHash(servers, keys)
 }

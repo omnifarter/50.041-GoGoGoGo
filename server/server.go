@@ -3,15 +3,31 @@ package server
 import (
 	"net/http"
 
+	"gogogogo/helpers"
 	nodes "gogogogo/nodes"
+
 	// gin library
 	"github.com/gin-gonic/gin"
 	// cors
 	"github.com/gin-contrib/cors"
+
+	"gorm.io/gorm"
 )
 
+type Book struct {
+	gorm.Model
+	ID      int `gorm:"primaryKey"`
+	Title   string
+	Img_url string
+}
 
-func StartServer(nodeEntries map[int]*nodes.Node, manager *nodes.Manager) {
+type User struct {
+	gorm.Model
+	id   int `gorm:"primaryKey"`
+	name string
+}
+
+func StartServer(nodeEntries map[int]*nodes.Node, manager *nodes.Manager, db *gorm.DB) {
 	router := gin.Default()
 
 	// cors setting
@@ -29,9 +45,13 @@ func StartServer(nodeEntries map[int]*nodes.Node, manager *nodes.Manager) {
 	{
 		// GET Route: /all
 		api.GET("/all", func(ctx *gin.Context) {
-			data := manager.GetAllKeys()
-			ctx.JSON(200, gin.H{"data": data.Data})
+			data := manager.GetAllKeys() //maybe instead of getting all keys from nodes, we get from the DB straight
+			bookId := helpers.GetLatestDatabaseEntryValue(data.Data)
+			var bookData Book
+			db.Unscoped().First(&bookData, bookId)
+			ctx.JSON(200, gin.H{"data": bookData})
 		})
+
 	}
 	// create API route group - user
 	api = router.Group("/user")
@@ -41,7 +61,7 @@ func StartServer(nodeEntries map[int]*nodes.Node, manager *nodes.Manager) {
 		api.PUT("/borrow", func(ctx *gin.Context) {
 			var borrowBody nodes.BorrowBody
 			ctx.BindJSON(&borrowBody)
-
+			manager.PutKey(borrowBody)
 			ctx.JSON(200, gin.H{"status": "borrowed"})
 		})
 

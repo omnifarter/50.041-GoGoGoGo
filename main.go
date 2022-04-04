@@ -5,6 +5,9 @@ import (
 	nodes "gogogogo/nodes"
 	server "gogogogo/server"
 	"sync"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 // function set up the backend router
@@ -15,7 +18,9 @@ func main() {
 
 	nodeEntries := nodes.InitaliseNodes(wg)
 	manager := nodes.InitialiseManager(nodeEntries)
-	server.StartServer(nodeEntries, &manager)
+	db, _ := gorm.Open(sqlite.Open("books.db"), &gorm.Config{})
+	server.StartServer(nodeEntries, &manager, db)
+
 
 	fmt.Println("Initialising nodes")
 

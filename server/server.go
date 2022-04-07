@@ -43,7 +43,7 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent) {
 	api = router.Group("/books")
 	{
 		//GET Route: /books
-		api.GET("/", func(ctx *gin.Context) {
+		api.GET("/get", func(ctx *gin.Context) {
 			type GetBookBody struct {
 				bookId int
 			}

@@ -16,7 +16,7 @@ export const getAllBooks = async () => {
 }
 
 export const getBook = async (bookId) => {
-    const response = await fetch(`${BACKEND_URL}/books?` + new URLSearchParams({
+    const response = await fetch(`${BACKEND_URL}/books/get?` + new URLSearchParams({
         bookId
     }),
     {

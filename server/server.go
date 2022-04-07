@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -20,17 +19,23 @@ import (
 
 type Book struct {
 	gorm.Model
-	ID       int `gorm:"primaryKey"`
-	Title    string
-	Img_url  string
-	borrowed bool
-	user     User
+	ID      int `gorm:"primaryKey"`
+	Title   string
+	Img_url string
 }
 
+type BookResponse struct {
+	Id       int
+	Title    string
+	Img_url  string
+	Borrowed bool
+	UserId   int
+	UserName string
+}
 type User struct {
 	gorm.Model
-	id   int `gorm:"primaryKey"`
-	name string
+	Id   int `gorm:"primaryKey"`
+	Name string
 }
 
 func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *gorm.DB) {
@@ -53,18 +58,24 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 		api.GET("/all", func(ctx *gin.Context) {
 			data := c.GetAllKeys()
 			fmt.Println(data)
-			var returnResponse []Book
+			var returnResponse []BookResponse
 			for bookId, databaseEntry := range data {
 				var bookData Book
 				db.Unscoped().First(&bookData, bookId)
+				book := BookResponse{}
+				book.Id = bookData.ID
+				book.Title = bookData.Title
+				book.Img_url = bookData.Img_url
 				if databaseEntry.Value == -1 { // no user
-					bookData.borrowed = false
+					book.Borrowed = false
 				} else { // get user data
 					var userData User
+					book.Borrowed = true
 					db.Unscoped().First(&userData, databaseEntry.Value)
-					bookData.user = userData
+					book.UserName = userData.Name
+					book.UserId = userData.Id
 				}
-				returnResponse = append(returnResponse, bookData)
+				returnResponse = append(returnResponse, book)
 			}
 			ctx.JSON(200, gin.H{"data": returnResponse})
 		})
@@ -85,15 +96,21 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 			data := c.GetKey(val)
 			var bookData Book
 			db.Unscoped().First(&bookData, val)
+			book := BookResponse{}
+			book.Id = bookData.ID
+			book.Title = bookData.Title
+			book.Img_url = bookData.Img_url
 			if data.Data[val].Value == -1 { // no user
-				bookData.borrowed = false
+				book.Borrowed = false
 			} else { // get user data
 				var userData User
+				book.Borrowed = true
 				db.Unscoped().First(&userData, data.Data[val].Value)
-				bookData.user = userData
+				book.UserName = userData.Name
+				book.UserId = userData.Id
 			}
-
-			ctx.JSON(200, gin.H{"data": bookData})
+			fmt.Println(book)
+			ctx.JSON(200, gin.H{"data": book})
 
 		})
 
@@ -109,14 +126,6 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 			if err != nil {
 				println("Error:", err.Error())
 			}
-
-			jsonData, _ := ctx.GetRawData()
-
-			fmt.Println("Raw JSON data", jsonData)
-			fmt.Println(borrowBody)
-
-			x, _ := ioutil.ReadAll(ctx.Request.Body)
-			fmt.Printf("THIS IS FROM IOUTIL: %s\n", string(x))
 
 			c.PutKey(borrowBody)
 

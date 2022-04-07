@@ -5,11 +5,15 @@ import ReactJson from 'react-json-view'
 
 function Test() {
     const [noOfNodes, setNoOfNodes] = useState();
-
     const [response, setResponse] = useState()
     const [bookId, setBookId] = useState()
-    const addBook = () => { };
-    const removeBook = () => { };
+    const [bookTitleAdd, setBookTitleAdd] = useState('');
+    const [bookURLAdd, setBookURLAdd] = useState('');
+    const [userId, setUserId] = useState()
+
+
+    const addBook = () => { }; //TODO: implement
+    const removeBook = () => { }; //TODO: implement
 
     const getBookTest = async () => {
         const data = await getBook(bookId)
@@ -17,7 +21,7 @@ function Test() {
     }
 
     const borrowBookTest = async () => {
-        await borrowBook(0,-1)
+        await borrowBook(bookId,userId)
     }
 
     const getAllBooksTest = async () => {
@@ -27,12 +31,15 @@ function Test() {
     const addNode = () => { };
     const removeNode = () => { };
 
-    const [bookTitleAdd, setBookTitleAdd] = useState('');
-    const [bookURLAdd, setBookURLAdd] = useState('');
 
     const bookTitleHandler = (e) => {
         setBookTitleAdd(e.target.value);
     };
+
+    const userIdHandler = (e) => {
+        setUserId(e.target.value);
+    };
+
     const bookURLHandler = (e) => {
         setBookURLAdd(e.target.value);
     };
@@ -99,11 +106,17 @@ function Test() {
                                     <Form.Control type="number" placeholder="1"  onChange={bookIdHandler} required/>
                                 </Form.Group>
                                 <br />
+                                <Form.Group className="mb-6">
+                                    <Form.Label>User ID</Form.Label>
+                                    <Form.Control type="number" placeholder="1"  onChange={userIdHandler} required/>
+                                </Form.Group>
+                                <br />
                                 <Button variant="info" type="submit">
                                     Remove Book
                                 </Button>{" "}
                                 <Button onClick={getBookTest}>Get Book Value</Button>
                                  <Button onClick={getAllBooksTest}>Get all books value</Button>
+                                 <Button onClick={borrowBookTest}>Borrow Book</Button>
                             </Form>
                         </div>
                     </Col>

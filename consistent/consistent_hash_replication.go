@@ -186,7 +186,6 @@ func sliceContainsMember(set []string, member string) bool {
 
 func (c *Consistent) GetAllKeys() map[int]nodes.DatabaseEntry {
 	// circle through all the members
-	fmt.Println("Consistent GetAllKeys")
 
 	var allKeys map[int]nodes.DatabaseEntry = make(map[int]nodes.DatabaseEntry)
 	for _, n := range c.members { // circle through each member
@@ -198,7 +197,6 @@ func (c *Consistent) GetAllKeys() map[int]nodes.DatabaseEntry {
 			}
 		}
 	}
-	fmt.Println("Consistent finished get all keys: ", allKeys)
 
 	for key := range allKeys {
 		entry := c.GetKey(key)
@@ -227,12 +225,9 @@ func (c *Consistent) GetKey(key int) nodes.Response {
 }
 
 func (c *Consistent) PutKey(borrowBody BorrowBody) nodes.Response {
-	fmt.Println("Is this responding?")
 	hashkey := c.hashKey(fmt.Sprint(borrowBody.BookId))
-	fmt.Println("1")
 
 	coordinator, err := c.Get(fmt.Sprint(hashkey))
-	fmt.Println("2")
 
 	if err != nil {
 		log.Fatal(err)
@@ -243,12 +238,9 @@ func (c *Consistent) PutKey(borrowBody BorrowBody) nodes.Response {
 		RequestType: nodes.PUT,
 		BookID:      borrowBody.BookId,
 	}
-	fmt.Println("3")
 
 	c.members[coordinator].ClientRequestChannel <- putRequest
 	// wait for reply
-	fmt.Println("Waiting for reply")
 	res := <-c.members[coordinator].ClientResponseChannel
-	fmt.Println("Reply replied")
 	return res
 }

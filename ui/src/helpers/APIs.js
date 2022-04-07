@@ -34,10 +34,10 @@ export const getBook = async (bookId) => {
 export const borrowBook = async (bookId,userId) => {
     const response = await fetch(`${BACKEND_URL}/user/borrow`,{
         method:"PUT",
-        body:{
-            userId,
-            bookId
-        }
+        body:JSON.stringify({
+            "userId":parseInt(userId),
+            "bookId":parseInt(bookId)
+        })
     })
     if (response.ok) {
         console.log("Response OK")

@@ -1,7 +1,9 @@
 package server
 
 import (
+	"log"
 	"net/http"
+	"strconv"
 
 	consistent "gogogogo/consistent"
 	nodes "gogogogo/nodes"
@@ -31,7 +33,25 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent) {
 		// GET Route: /all
 		api.GET("/all", func(ctx *gin.Context) {
 			data := c.GetAllKeys()
-			ctx.JSON(200, gin.H{"data": data.Data})
+			ctx.JSON(200, gin.H{"data": data})
+		})
+	}
+
+	api = router.Group("/books")
+	{
+		//GET Route: /books
+		api.GET("/", func(ctx *gin.Context) {
+			type GetBookBody struct {
+				bookId int
+			}
+			queryParams := ctx.Request.URL.Query()
+			val, err := strconv.Atoi(queryParams["bookId"][0])
+			if err != nil { // this means that the bookId is not an int.
+				log.Fatal(err)
+			}
+			data := c.GetKey(val)
+			ctx.JSON(200, gin.H{"data": data})
+
 		})
 	}
 	// create API route group - user
@@ -40,9 +60,9 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent) {
 
 		// PUT Route: /borrow
 		api.PUT("/borrow", func(ctx *gin.Context) {
-			var borrowBody nodes.BorrowBody
+			var borrowBody consistent.BorrowBody
 			ctx.BindJSON(&borrowBody)
-
+			c.PutKey(borrowBody)
 			ctx.JSON(200, gin.H{"status": "borrowed"})
 		})
 

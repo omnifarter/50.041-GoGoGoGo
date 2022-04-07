@@ -4,6 +4,8 @@ import (
 	"fmt"
 	consistent "gogogogo/consistent"
 	nodes "gogogogo/nodes"
+	"gogogogo/server"
+
 	// server "gogogogo/server"
 	"log"
 	"sync"
@@ -16,11 +18,9 @@ func main() {
 	wg := new(sync.WaitGroup)
 	fmt.Println("Initialising nodes")
 	nodeEntries := nodes.InitaliseNodes(wg)
-	consistentHash := consistent.New()
-	for nodeId, node := range nodeEntries {
-		fmt.Printf("Node %d added\n", nodeId)
-		consistentHash.Add(fmt.Sprint(nodeId), node)
-	}
+	consistentHash := consistent.InitaliseConsistent(nodeEntries)
+	server.StartServer(nodeEntries, consistentHash)
+	
 	bookIds := []string{"1", "2", "3", "4", "5", "6", "7", "8"}
 	fmt.Printf("Consistent Hash has %d nodes\n", len(consistentHash.Members()))
 	for _, bookId := range bookIds {

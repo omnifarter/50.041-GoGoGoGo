@@ -5,12 +5,16 @@ import (
 	"fmt"
 	nodes "gogogogo/nodes"
 	"hash/crc32"
+	"log"
 	"sort"
 	"strconv"
 	"sync"
 )
 
-const NUM_OF_REPLICAS = 3
+const (
+	NUM_OF_REPLICAS = 3
+	THRESHOLD = 10
+)
 
 type BorrowBody struct {
 	BookId int `json:"bookId"`
@@ -48,18 +52,22 @@ type Consistent struct {
 	members          map[string]*nodes.Node
 	sortedHashes     uints
 	NumberOfReplicas int
-	count            int64
+	// count            int64
 	sync.RWMutex
 }
 
 // New creates a new Consistent object with NUM_OF_REPLICAS replicas for each entry.
 //
 // To change the number of replicas, set NUM_OF_REPLICAS before adding entries.
-func New() *Consistent {
+func InitaliseConsistent(nodeEntries map[int]*nodes.Node) *Consistent {
 	c := new(Consistent)
 	c.NumberOfReplicas = NUM_OF_REPLICAS
 	c.circle = make(map[uint32]string)
 	c.members = make(map[string]*nodes.Node)
+	for nodeId, node := range nodeEntries {
+		fmt.Printf("Node %d added\n", nodeId)
+		c.Add(fmt.Sprint(nodeId), node)
+	}
 	return c
 }
 
@@ -86,7 +94,7 @@ func (c *Consistent) add(elt string, node *nodes.Node) {
 	}
 	c.members[elt] = node
 	c.updateSortedHashes()
-	c.count++
+	// c.count++
 }
 
 // Remove removes an element from the hash.
@@ -103,34 +111,8 @@ func (c *Consistent) remove(elt string) {
 	}
 	delete(c.members, elt)
 	c.updateSortedHashes()
-	c.count--
+	// c.count--
 }
-
-// Set sets all the elements in the hash.  If there are existing elements not
-// present in elts, they will be removed.
-// func (c *Consistent) Set(elts []string) {
-// 	c.Lock()
-// 	defer c.Unlock()
-// 	for k := range c.members {
-// 		found := false
-// 		for _, v := range elts {
-// 			if k == v {
-// 				found = true
-// 				break
-// 			}
-// 		}
-// 		if !found {
-// 			c.remove(k)
-// 		}
-// 	}
-// 	for _, v := range elts {
-// 		_, exists := c.members[v]
-// 		if exists {
-// 			continue
-// 		}
-// 		c.add(v)
-// 	}
-// }
 
 func (c *Consistent) Members() []string {
 	c.RLock()
@@ -167,78 +149,6 @@ func (c *Consistent) search(key uint32) (i int) {
 	return
 }
 
-// GetTwo returns the two closest distinct elements to the name input in the circle.
-func (c *Consistent) GetTwo(name string) (string, string, error) {
-	c.RLock()
-	defer c.RUnlock()
-	if len(c.circle) == 0 {
-		return "", "", ErrEmptyCircle
-	}
-	key := c.hashKey(name)
-	i := c.search(key)
-	a := c.circle[c.sortedHashes[i]]
-
-	if c.count == 1 {
-		return a, "", nil
-	}
-
-	start := i
-	var b string
-	for i = start + 1; i != start; i++ {
-		if i >= len(c.sortedHashes) {
-			i = 0
-		}
-		b = c.circle[c.sortedHashes[i]]
-		if b != a {
-			break
-		}
-	}
-	return a, b, nil
-}
-
-// GetN returns the N closest distinct elements to the name input in the circle.
-func (c *Consistent) GetN(name string, n int) ([]string, error) {
-	c.RLock()
-	defer c.RUnlock()
-
-	if len(c.circle) == 0 {
-		return nil, ErrEmptyCircle
-	}
-
-	if c.count < int64(n) {
-		n = int(c.count)
-	}
-
-	var (
-		key   = c.hashKey(name)
-		i     = c.search(key)
-		start = i
-		res   = make([]string, 0, n)
-		elem  = c.circle[c.sortedHashes[i]]
-	)
-
-	res = append(res, elem)
-
-	if len(res) == n {
-		return res, nil
-	}
-
-	for i = start + 1; i != start; i++ {
-		if i >= len(c.sortedHashes) {
-			i = 0
-		}
-		elem = c.circle[c.sortedHashes[i]]
-		if !sliceContainsMember(res, elem) {
-			res = append(res, elem)
-		}
-		if len(res) == n {
-			break
-		}
-	}
-
-	return res, nil
-}
-
 func (c *Consistent) hashKey(key string) uint32 {
 	return c.hashKeyCRC32(key)
 }
@@ -251,12 +161,6 @@ func (c *Consistent) hashKeyCRC32(key string) uint32 {
 	}
 	return crc32.ChecksumIEEE([]byte(key))
 }
-
-// func (c *Consistent) hashKeyFnv(key string) uint32 {
-// 	h := fnv.New32a()
-// 	h.Write([]byte(key))
-// 	return h.Sum32()
-// }
 
 func (c *Consistent) updateSortedHashes() {
 	hashes := c.sortedHashes[:0]
@@ -280,18 +184,29 @@ func sliceContainsMember(set []string, member string) bool {
 	return false
 }
 
-func (c *Consistent) GetAllKeys() nodes.Response {
-	clientRequest := nodes.Request{
-		Id:          2,
-		ClientID:    0,
-		RequestType: nodes.GET,
-		BookID:      0, //TODO: implement a way to get all IDs
+func (c *Consistent) GetAllKeys() map[int]nodes.DatabaseEntry {
+	// circle through all the members
+	var allKeys map[int]nodes.DatabaseEntry
+	for _, n := range c.members { // circle through each member
+		for bookId := range n.Database {
+			_, found := allKeys[bookId]
+			// add the book ID if it is not already in the map
+			if found == false {
+				allKeys[bookId] = nodes.DatabaseEntry{
+					Value: 0,
+					Clock: 0,
+				}
+			}
+		}
 	}
-	c.members[fmt.Sprint(nodes.COORDINATOR)].ClientRequestChannel <- clientRequest
+
+	for key := range allKeys {
+		entry := c.GetKey(key)
+		allKeys[key] = entry.Data[key]
+	}
 
 	// wait for reply
-	data := <-c.members[fmt.Sprint(nodes.COORDINATOR)].ClientResponseChannel
-	return data
+	return allKeys
 }
 
 func (c *Consistent) GetKey(key int) nodes.Response {
@@ -301,126 +216,29 @@ func (c *Consistent) GetKey(key int) nodes.Response {
 		RequestType: nodes.GET,
 		BookID:      key,
 	}
-	c.members[fmt.Sprint(nodes.COORDINATOR)].ClientRequestChannel <- clientRequest
+	coordinator, err := c.Get(fmt.Sprint(key))
+	if err != nil {
+		log.Fatal(err)
+	}
+	c.members[fmt.Sprint(coordinator)].ClientRequestChannel <- clientRequest
 	// wait for reply
 
-	data := <-c.members[fmt.Sprint(nodes.COORDINATOR)].ClientResponseChannel
+	data := <-c.members[fmt.Sprint(coordinator)].ClientResponseChannel
 	return data
 }
 
 func (c *Consistent) PutKey(borrowBody BorrowBody) {
+	hashkey := c.hashKey(fmt.Sprint(borrowBody.BookId))
+	coordinator, err := c.Get(fmt.Sprint(hashkey))
+	if err != nil {
+		log.Fatal(err)
+	}
 	putRequest := nodes.Request{
 		Id:          0,
 		ClientID:    borrowBody.UserId,
 		RequestType: nodes.PUT,
 		BookID:      borrowBody.BookId,
 	}
-	c.members[fmt.Sprint(nodes.COORDINATOR)].ClientRequestChannel <- putRequest
+	c.members[coordinator].ClientRequestChannel <- putRequest
 	// wait for reply
 }
-
-// func ExampleNew() {
-// 	c := New()
-// 	c.Add("node1")
-// 	c.Add("node2")
-// 	c.Add("node3")
-// 	keys := []string{"1", "2", "3", "4", "5"}
-// 	for _, u := range keys {
-// 		server, err := c.Get(u)
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-// 		fmt.Printf("%s => %s\n", u, server)
-// 	}
-// 	// Output:
-// 	// user_mcnulty => cacheA
-// 	// user_bunk => cacheA
-// 	// user_omar => cacheA
-// 	// user_bunny => cacheC
-// 	// user_stringer => cacheC
-// }
-
-// func ExampleAdd() {
-// 	c := New()
-// 	c.Add("cacheA")
-// 	c.Add("cacheB")
-// 	c.Add("cacheC")
-// 	users := []string{"user_mcnulty", "user_bunk", "user_omar", "user_bunny", "user_stringer"}
-// 	fmt.Println("initial state [A, B, C]")
-// 	for _, u := range users {
-// 		server, err := c.Get(u)
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-// 		fmt.Printf("%s => %s\n", u, server)
-// 	}
-// 	c.Add("cacheD")
-// 	c.Add("cacheE")
-// 	fmt.Println("\nwith cacheD, cacheE [A, B, C, D, E]")
-// 	for _, u := range users {
-// 		server, err := c.Get(u)
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-// 		fmt.Printf("%s => %s\n", u, server)
-// 	}
-// 	// Output:
-// 	// initial state [A, B, C]
-// 	// user_mcnulty => cacheA
-// 	// user_bunk => cacheA
-// 	// user_omar => cacheA
-// 	// user_bunny => cacheC
-// 	// user_stringer => cacheC
-// 	//
-// 	// with cacheD, cacheE [A, B, C, D, E]
-// 	// user_mcnulty => cacheE
-// 	// user_bunk => cacheA
-// 	// user_omar => cacheA
-// 	// user_bunny => cacheE
-// 	// user_stringer => cacheE
-// }
-
-// func ExampleRemove() {
-// 	c := New()
-// 	c.Add("cacheA")
-// 	c.Add("cacheB")
-// 	c.Add("cacheC")
-// 	users := []string{"user_mcnulty", "user_bunk", "user_omar", "user_bunny", "user_stringer"}
-// 	fmt.Println("initial state [A, B, C]")
-// 	for _, u := range users {
-// 		server, err := c.Get(u)
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-// 		fmt.Printf("%s => %s\n", u, server)
-// 	}
-// 	c.Remove("cacheC")
-// 	fmt.Println("\ncacheC removed [A, B]")
-// 	for _, u := range users {
-// 		server, err := c.Get(u)
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-// 		fmt.Printf("%s => %s\n", u, server)
-// 	}
-// 	// Output:
-// 	// initial state [A, B, C]
-// 	// user_mcnulty => cacheA
-// 	// user_bunk => cacheA
-// 	// user_omar => cacheA
-// 	// user_bunny => cacheC
-// 	// user_stringer => cacheC
-// 	//
-// 	// cacheC removed [A, B]
-// 	// user_mcnulty => cacheA
-// 	// user_bunk => cacheA
-// 	// user_omar => cacheA
-// 	// user_bunny => cacheB
-// 	// user_stringer => cacheB
-// }
-
-// func main() {
-// 	ExampleNew()
-// 	ExampleAdd()
-// 	ExampleRemove()
-// }

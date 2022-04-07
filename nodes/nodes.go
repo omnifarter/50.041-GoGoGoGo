@@ -98,6 +98,7 @@ type Node struct {
 
 type Update struct {
 	structure []*Node
+	failed    int
 	status    int
 }
 
@@ -230,13 +231,13 @@ func (n *Node) listen(wg *sync.WaitGroup) {
 
 		// listening for update to ring structure
 		case update := <-n.updateChannel:
-			fmt.Printf("Node %v: Updating ring structure \n", n.id)
 			if update.status == NEW_NODE {
 				newList := update.structure
 				if !isIn(n.id, newList) {
 					// append its id into the msg
 					n.successor.updateChannel <- Update{
 						append(newList, n),
+						-1,
 						NEW_NODE,
 					}
 				} else {
@@ -245,6 +246,7 @@ func (n *Node) listen(wg *sync.WaitGroup) {
 						n.successor = newList[1]
 						n.predecessor = newList[len(newList)-1]
 						n.ring = n.predecessor.ring
+						fmt.Println("Updating of Ring Structure has been completed")
 						n.PrintRingStructure()
 					} else {
 						// update predecessor
@@ -254,22 +256,50 @@ func (n *Node) listen(wg *sync.WaitGroup) {
 							// update successor
 							n.successor = newList[0]
 						}
-						n.successor.updateChannel <- Update{
-							newList,
-							NEW_NODE,
-						}
+						n.successor.updateChannel <- update
 						// add new node into their ring structure
 						n.ring[newList[0].id] = newList[0]
 					}
 				}
-			} else {
+			} else if update.status == FAILED_NODE {
 				newList := update.structure
 				if !isIn(n.id, newList) {
-					// append its id into the msg
-					n.successor.updateChannel <- Update{
-						append(newList, n),
-						NEW_NODE,
+					// if successor has failed, contact its successor
+					if n.successor.failed {
+						n.successor.successor.updateChannel <- Update{
+							append(newList, n),
+							n.successor.id,
+							FAILED_NODE,
+						}
+					} else {
+						n.successor.updateChannel <- Update{
+							append(newList, n),
+							update.failed,
+							FAILED_NODE,
+						}
 					}
+				} else {
+					// returned to itself
+					idx := findIndex(n.id, newList)
+					predecessorId := idx - 1
+					successorId := idx + 1
+					if idx == 0 {
+						predecessorId = len(newList) - 1
+					} else if idx == len(newList)-1 {
+						successorId = 0
+					}
+					n.successor = newList[successorId]
+					n.predecessor = newList[predecessorId]
+
+					if idx == len(newList)-1 {
+						fmt.Println("Updating of Ring Structure has been completed")
+						n.PrintRingStructure()
+					} else {
+						n.successor.updateChannel <- update
+					}
+
+					// remove the failed node from the ring structure
+					delete(n.ring, update.failed)
 				}
 			}
 
@@ -303,16 +333,26 @@ func CreateNode(id int, nodes map[string]*Node, wg *sync.WaitGroup) *Node {
 	go newNode.listen(wg)
 	wg.Add(1)
 
+	var nodeIds []string
+	for id := range nodes {
+		nodeIds = append(nodeIds, id)
+	}
+
+	// pings the first element in the list of node IDs
+	nodeToPing := nodeIds[0]
+
 	// update ring structure
-	newNode.UpdateRing(nodes, NEW_NODE)
+	newNode.UpdateRing(nodes[nodeToPing], NEW_NODE)
 
 	return &newNode
 }
 
 func (n *Node) PrintRingStructure() {
 	structure := make([]int, 0)
-	for id := range n.ring {
-		structure = append(structure, id)
+	var currentNode = n
+	for !isInInt(currentNode.id, structure) {
+		structure = append(structure, currentNode.id)
+		currentNode = currentNode.successor
 	}
 	fmt.Println("New Ring Structure: ", structure)
 }
@@ -323,25 +363,27 @@ func KillNode(id string, nodes map[string]*Node, wg *sync.WaitGroup) {
 	nodes[id].KillChannel <- true
 
 	// successor to call for update of ring structure
-	successor.UpdateRing(nodes, FAILED_NODE)
+	fmt.Println("successor to start update:", successor.id)
+	successor.UpdateRing(successor, FAILED_NODE)
 
 	wg.Done()
 }
 
-func (n *Node) UpdateRing(nodes map[string]*Node, updateType int) {
-	var nodeIds []string
-
-	for id := range nodes {
-		nodeIds = append(nodeIds, id)
-	}
-
-	// pings the first element in the list of node IDs
-	nodeToPing := (nodeIds[0])
-	fmt.Printf("Pinging node %v \n", nodeToPing)
+func (n *Node) UpdateRing(node *Node, updateType int) {
+	fmt.Printf("Pinging node %v \n", node.id)
 	msg := make([]*Node, 0)
-	nodes[nodeToPing].updateChannel <- Update{
-		append(msg, n),
-		updateType,
+	if updateType == NEW_NODE {
+		node.updateChannel <- Update{
+			append(msg, n),
+			-1,
+			updateType,
+		}
+	} else {
+		node.updateChannel <- Update{
+			msg,
+			-1,
+			updateType,
+		}
 	}
 }
 
@@ -392,6 +434,15 @@ func InitaliseNodes(wg *sync.WaitGroup) map[int]*Node {
 	}
 	return nodeEntries
 
+}
+
+func isInInt(num int, list []int) bool {
+	for _, i := range list {
+		if num == i {
+			return true
+		}
+	}
+	return false
 }
 
 func isIn(num int, list []*Node) bool {

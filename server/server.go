@@ -144,6 +144,7 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 		// GET Route: /kill
 		api.GET("/kill", func(ctx *gin.Context) {
 			c.KillNode()
+			ctx.JSON(200, gin.H{"status": "node removed"})
 		})
 
 		// GET Route: /add

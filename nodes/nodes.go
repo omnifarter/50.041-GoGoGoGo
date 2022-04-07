@@ -7,7 +7,6 @@ import (
 )
 
 // node struct
-
 const (
 	NUMBER_OF_NODES = 3
 	COORDINATOR     = 0

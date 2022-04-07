@@ -3,15 +3,16 @@ package server
 import (
 	"net/http"
 
+	consistent "gogogogo/consistent"
 	nodes "gogogogo/nodes"
+
 	// gin library
 	"github.com/gin-gonic/gin"
 	// cors
 	"github.com/gin-contrib/cors"
 )
 
-
-func StartServer(nodeEntries map[int]*nodes.Node, manager *nodes.Manager) {
+func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent) {
 	router := gin.Default()
 
 	// cors setting
@@ -29,7 +30,7 @@ func StartServer(nodeEntries map[int]*nodes.Node, manager *nodes.Manager) {
 	{
 		// GET Route: /all
 		api.GET("/all", func(ctx *gin.Context) {
-			data := manager.GetAllKeys()
+			data := c.GetAllKeys()
 			ctx.JSON(200, gin.H{"data": data.Data})
 		})
 	}

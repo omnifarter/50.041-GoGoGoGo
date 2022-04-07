@@ -25,6 +25,8 @@ type Manager struct {
 
 }
 
+// Use Consistent struct instead
+
 type BorrowBody struct {
 	BookId int `json:"bookId"`
 	UserId int `json:"userId"`

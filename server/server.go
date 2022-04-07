@@ -114,6 +114,11 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 
 		})
 
+		// TODO POST route: /add
+		api.GET("/add", func(ctx *gin.Context) {})
+
+		// TODO POST route: /remove
+		api.GET("/remove", func(ctx *gin.Context) {})
 	}
 	// create API route group - user
 	api = router.Group("/user")

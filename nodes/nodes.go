@@ -363,14 +363,13 @@ func KillNode(id string, nodes map[string]*Node, wg *sync.WaitGroup) {
 	nodes[id].KillChannel <- true
 
 	// successor to call for update of ring structure
-	fmt.Println("successor to start update:", successor.id)
 	successor.UpdateRing(successor, FAILED_NODE)
 
 	wg.Done()
 }
 
 func (n *Node) UpdateRing(node *Node, updateType int) {
-	fmt.Printf("Pinging node %v \n", node.id)
+	fmt.Println("Updating Ring Structure...")
 	msg := make([]*Node, 0)
 	if updateType == NEW_NODE {
 		node.updateChannel <- Update{

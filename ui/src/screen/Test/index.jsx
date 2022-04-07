@@ -1,6 +1,6 @@
 import { Button, Form, Col, Row, Container } from "react-bootstrap";
 import { useEffect, useState } from "react";
-import {getBook,getAllBooks,borrowBook} from '../../helpers/APIs'
+import {getBook,getAllBooks,borrowBook,addNode,removeNode} from '../../helpers/APIs'
 import ReactJson from 'react-json-view'
 
 function Test() {
@@ -28,8 +28,12 @@ function Test() {
         const data = await getAllBooks()
         setResponse(data)
     }
-    const addNode = () => { };
-    const removeNode = () => { };
+    const addNodeTest = async () => {
+        await addNode()
+    };
+    const removeNodeTest = async () => {
+        await removeNode()
+    };
 
 
     const bookTitleHandler = (e) => {
@@ -114,15 +118,32 @@ function Test() {
                                 <Button variant="info" type="submit">
                                     Remove Book
                                 </Button>{" "}
-                                <Button onClick={getBookTest}>Get Book Value</Button>
-                                 <Button onClick={getAllBooksTest}>Get all books value</Button>
-                                 <Button onClick={borrowBookTest}>Borrow Book</Button>
                             </Form>
                         </div>
                     </Col>
                 </Row>
+                <br />
+                <Row>
+                    <h3 className="Library-title">Testing Buttons</h3>
+                    <Col>
+                        <Button onClick={getBookTest}>Get Book Value</Button>
+                    </Col>
+                    <Col>
+                        <Button onClick={getAllBooksTest}>Get all books value</Button>
+                    </Col>
+                    <Col>
+                        <Button onClick={borrowBookTest}>Borrow Book</Button>
+                    </Col>
+                    <Col>
+                        <Button onClick={addNodeTest}>Add Node</Button>
+                    </Col>
+                    <Col>
+                        <Button onClick={removeNodeTest}>Remove Node</Button>
+                    </Col>
+                </Row>
             </Container>
-
+            <br />
+            <br />
             <ReactJson src={response} />
 
         </div>

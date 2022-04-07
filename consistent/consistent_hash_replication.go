@@ -6,6 +6,7 @@ import (
 	nodes "gogogogo/nodes"
 	"hash/crc32"
 	"log"
+	"math/rand"
 	"sort"
 	"strconv"
 	"sync"
@@ -52,6 +53,7 @@ type Consistent struct {
 	members          map[string]*nodes.Node
 	sortedHashes     uints
 	NumberOfReplicas int
+	waitGroup        *sync.WaitGroup
 	// count            int64
 	sync.RWMutex
 }
@@ -59,11 +61,12 @@ type Consistent struct {
 // New creates a new Consistent object with NUM_OF_REPLICAS replicas for each entry.
 //
 // To change the number of replicas, set NUM_OF_REPLICAS before adding entries.
-func InitaliseConsistent(nodeEntries map[int]*nodes.Node) *Consistent {
+func InitaliseConsistent(nodeEntries map[int]*nodes.Node, wg *sync.WaitGroup) *Consistent {
 	c := new(Consistent)
 	c.NumberOfReplicas = NUM_OF_REPLICAS
 	c.circle = make(map[uint32]string)
 	c.members = make(map[string]*nodes.Node)
+	c.waitGroup = wg
 	for nodeId, node := range nodeEntries {
 		fmt.Printf("Node %d added\n", nodeId)
 		c.Add(fmt.Sprint(nodeId), node)
@@ -243,4 +246,39 @@ func (c *Consistent) PutKey(borrowBody BorrowBody) nodes.Response {
 	// wait for reply
 	res := <-c.members[coordinator].ClientResponseChannel
 	return res
+}
+
+func (c *Consistent) KillNode() {
+	randomIdx := rand.Intn(len(c.members))
+	randomNode := c.Members()[randomIdx]
+	fmt.Printf("Killing Node %v \n", randomNode)
+
+	// kill node & remove from members list
+	nodes.KillNode(randomNode, c.members, c.waitGroup)
+
+	// update hash ring
+	c.Remove(randomNode)
+}
+
+func (c *Consistent) AddNode() {
+	maxId := findMaxId(c.Members()) + 1
+	fmt.Printf("Adding Node %v \n", maxId)
+	stringId := fmt.Sprint(maxId)
+
+	// create node
+	newNode := nodes.CreateNode(maxId, c.members, c.waitGroup)
+
+	// update hash ring
+	c.Add(stringId, newNode)
+}
+
+func findMaxId(ids []string) int {
+	var max int
+	for _, id := range ids {
+		numId, _ := strconv.Atoi(id)
+		if numId > max {
+			max = numId
+		}
+	}
+	return max
 }

@@ -46,3 +46,31 @@ export const borrowBook = async (bookId,userId) => {
         throw new Error(`Error ${response.status}`)
     }
 }
+
+export const addNode = async () => {
+    const response = await fetch(`${BACKEND_URL}/nodes/add`,
+    {
+        method:"GET",
+        // mode: 'cors',
+
+    })
+    if (response.ok) {
+        return await response.json()
+    } else {
+        throw new Error(`Error ${response.status}`)
+    }
+}
+
+export const removeNode = async () => {
+    const response = await fetch(`${BACKEND_URL}/nodes/kill`,
+    {
+        method:"GET",
+        // mode: 'cors',
+
+    })
+    if (response.ok) {
+        return await response.json()
+    } else {
+        throw new Error(`Error ${response.status}`)
+    }
+}

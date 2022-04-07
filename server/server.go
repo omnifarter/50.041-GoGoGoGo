@@ -139,6 +139,20 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 		})
 	}
 
+	api = router.Group("/nodes")
+	{
+		// GET Route: /kill
+		api.GET("/kill", func(ctx *gin.Context) {
+			c.KillNode()
+		})
+
+		// GET Route: /add
+		api.GET("/add", func(ctx *gin.Context) {
+			c.AddNode()
+			ctx.JSON(200, gin.H{"status": "node added"})
+		})
+	}
+
 	router.NoRoute(func(ctx *gin.Context) { ctx.JSON(http.StatusNotFound, gin.H{}) })
 
 	// Start listening and serving requests

@@ -18,7 +18,7 @@ const MyBooks = ({show, closeMyBooks, myBooks}) => {
             <th>Return Book?</th>
           </tr>
           <tbody>
-            {myBooks.map((book, index) => 
+            {myBooks && myBooks.map((book, index) => 
               <tr key={index}>
                 <td>{index+1}</td>
                 <td>{book.title}</td>

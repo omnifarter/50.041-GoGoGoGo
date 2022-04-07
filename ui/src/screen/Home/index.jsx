@@ -39,7 +39,7 @@ function Home() {
 
     const fetchAllBooks = async () => {
         const booksFetched = await getAllBooks()
-        setBooks(booksFetched)
+        setBooks(booksFetched.data)
     }
     // open the borrow modal
     const openBook = (book) => {
@@ -89,7 +89,7 @@ function Home() {
         <div className="Books-library">
           <h4>View All Available Books</h4>
           <div className='All-books'>  
-            {books.map((b) => b.available && <Book key={b.id} book={b} openBook={openBook} />)}
+            {books && books.map((b) => <Book key={b.id} book={b} openBook={openBook} />)}
           </div>
         </div>
         

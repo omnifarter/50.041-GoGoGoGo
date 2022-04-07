@@ -13,7 +13,7 @@ const Borrow = ({ show, book, closeBorrow, confirmBorrow }) => {
       </Modal.Header>
 
       <Modal.Body>
-        <p>{`Book Title: ${book.title}`}</p>
+        <p>{`Book Title: ${book.Title}`}</p>
         <Form.Group className="mb-3" controlId="library-ID">
           <Form.Label>Enter your Library ID</Form.Label>
           <Form.Control placeholder="Library ID" onChange={(e) => setId(parseInt(e.target.value, 10))} />

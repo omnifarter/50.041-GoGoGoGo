@@ -262,7 +262,7 @@ func (c *Consistent) PutKey(borrowBody BorrowBody) nodes.Response {
 	return response
 }
 
-func (c *Consistent) KillNode() {
+func (c *Consistent) KillNode() int {
 	randomIdx := rand.Intn(len(c.members))
 	randomNode := c.Members()[randomIdx]
 	fmt.Printf("Killing Node %v \n", randomNode)
@@ -272,9 +272,11 @@ func (c *Consistent) KillNode() {
 
 	// update hash ring
 	c.Remove(randomNode)
+
+	return len(c.Members())
 }
 
-func (c *Consistent) AddNode() {
+func (c *Consistent) AddNode() int {
 	maxId := findMaxId(c.Members()) + 1
 	fmt.Printf("Adding Node %v \n", maxId)
 	stringId := fmt.Sprint(maxId)
@@ -284,6 +286,8 @@ func (c *Consistent) AddNode() {
 
 	// update hash ring
 	c.Add(stringId, newNode)
+
+	return len(c.Members())
 }
 
 func findMaxId(ids []string) int {

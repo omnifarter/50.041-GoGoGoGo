@@ -1,6 +1,6 @@
 import { Button, Form, Col, Row, Container } from "react-bootstrap";
 import { useEffect, useState } from "react";
-import {getBook,getAllBooks,borrowBook,addNode,removeNode} from '../../helpers/APIs'
+import {getBook,getAllBooks,borrowBook,addNode,removeNode, getNodes} from '../../helpers/APIs'
 import ReactJson from 'react-json-view'
 
 function Test() {
@@ -29,12 +29,17 @@ function Test() {
         setResponse(data)
     }
     const addNodeTest = async () => {
-        await addNode()
+        const data = await addNode()
+        setNoOfNodes(data.data)
     };
     const removeNodeTest = async () => {
-        await removeNode()
+        const data = await removeNode()
+        setNoOfNodes(data.data)
     };
-
+    const getNodesTest = async () => {
+        const data = await getNodes()
+        setNoOfNodes(data.data)
+    };
 
     const bookTitleHandler = (e) => {
         setBookTitleAdd(e.target.value);
@@ -63,6 +68,10 @@ function Test() {
         return alert("Book Id: " + bookId)
     };
 
+    useEffect(() => {
+        getNodesTest()
+    }, [])
+
     return (
         <div>
             <header className="App-header">
@@ -73,10 +82,10 @@ function Test() {
 
             <div className="App-header">
 
-                <Button variant="success" onClick={() => addNode()}>
+                <Button variant="success" onClick={() => addNodeTest()}>
                     Add Node
                 </Button>{" "}
-                <Button variant="danger" onClick={() => removeNode()}>
+                <Button variant="danger" onClick={() => removeNodeTest()}>
                     Remove Node
                 </Button>{" "}
             </div>
@@ -133,12 +142,6 @@ function Test() {
                     </Col>
                     <Col>
                         <Button onClick={borrowBookTest}>Borrow Book</Button>
-                    </Col>
-                    <Col>
-                        <Button onClick={addNodeTest}>Add Node</Button>
-                    </Col>
-                    <Col>
-                        <Button onClick={removeNodeTest}>Remove Node</Button>
                     </Col>
                 </Row>
             </Container>

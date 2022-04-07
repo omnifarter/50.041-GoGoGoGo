@@ -142,15 +142,21 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 	api = router.Group("/nodes")
 	{
 		// GET Route: /kill
+		api.GET("/all", func(ctx *gin.Context) {
+			nodes := len(c.Members())
+			ctx.JSON(200, gin.H{"data": nodes})
+		})
+
+		// GET Route: /kill
 		api.GET("/kill", func(ctx *gin.Context) {
-			c.KillNode()
-			ctx.JSON(200, gin.H{"status": "node removed"})
+			nodes := c.KillNode()
+			ctx.JSON(200, gin.H{"status": "node removed", "data": nodes})
 		})
 
 		// GET Route: /add
 		api.GET("/add", func(ctx *gin.Context) {
-			c.AddNode()
-			ctx.JSON(200, gin.H{"status": "node added"})
+			nodes := c.AddNode()
+			ctx.JSON(200, gin.H{"status": "node added", "data": nodes})
 		})
 	}
 

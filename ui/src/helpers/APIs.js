@@ -47,6 +47,20 @@ export const borrowBook = async (bookId,userId) => {
     }
 }
 
+export const getNodes = async () => {
+    const response = await fetch(`${BACKEND_URL}/nodes/all`,
+    {
+        method:"GET",
+        // mode: 'cors',
+
+    })
+    if (response.ok) {
+        return await response.json()
+    } else {
+        throw new Error(`Error ${response.status}`)
+    }
+}
+
 export const addNode = async () => {
     const response = await fetch(`${BACKEND_URL}/nodes/add`,
     {

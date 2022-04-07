@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 )
 
 const (
@@ -221,17 +222,23 @@ func (c *Consistent) GetKey(key int) nodes.Response {
 		log.Fatal(err)
 	}
 	c.members[fmt.Sprint(coordinator)].ClientRequestChannel <- clientRequest
+	var data nodes.Response
 	// wait for reply
 	fmt.Println("---Waiting for reply---")
-	data := <-c.members[fmt.Sprint(coordinator)].ClientResponseChannel
+	select {
+	case res := <-c.members[fmt.Sprint(coordinator)].ClientResponseChannel:
+		fmt.Printf("Manager: Received ACK from Node %d\n", clientRequest.Id)
+		data = res
+	case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
+		fmt.Printf("Manager: Node %d TIMEOUTs\n", clientRequest.Id)
+	}
+	// data := <-c.members[fmt.Sprint(coordinator)].ClientResponseChannel
 	return data
 }
 
 func (c *Consistent) PutKey(borrowBody BorrowBody) nodes.Response {
 	hashkey := c.hashKey(fmt.Sprint(borrowBody.BookId))
-
 	coordinator, err := c.Get(fmt.Sprint(hashkey))
-
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -241,11 +248,18 @@ func (c *Consistent) PutKey(borrowBody BorrowBody) nodes.Response {
 		RequestType: nodes.PUT,
 		BookID:      borrowBody.BookId,
 	}
-
 	c.members[coordinator].ClientRequestChannel <- putRequest
 	// wait for reply
-	res := <-c.members[coordinator].ClientResponseChannel
-	return res
+	var response nodes.Response
+	select {
+	case res := <-c.members[coordinator].ClientResponseChannel:
+		response = res
+		fmt.Printf("Manager: Received ACK from Node %d\n", putRequest.Id)
+	case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
+		fmt.Printf("Manager: Node %d TIMEOUTs\n", putRequest.Id)
+	}
+	// res := <-c.members[coordinator].ClientResponseChannel
+	return response
 }
 
 func (c *Consistent) KillNode() {

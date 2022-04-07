@@ -13,7 +13,7 @@ import (
 
 const (
 	NUM_OF_REPLICAS = 3
-	THRESHOLD = 10
+	THRESHOLD       = 10
 )
 
 type BorrowBody struct {
@@ -186,25 +186,24 @@ func sliceContainsMember(set []string, member string) bool {
 
 func (c *Consistent) GetAllKeys() map[int]nodes.DatabaseEntry {
 	// circle through all the members
-	var allKeys map[int]nodes.DatabaseEntry
+	fmt.Println("Consistent GetAllKeys")
+
+	var allKeys map[int]nodes.DatabaseEntry = make(map[int]nodes.DatabaseEntry)
 	for _, n := range c.members { // circle through each member
 		for bookId := range n.Database {
 			_, found := allKeys[bookId]
 			// add the book ID if it is not already in the map
 			if found == false {
-				allKeys[bookId] = nodes.DatabaseEntry{
-					Value: 0,
-					Clock: 0,
-				}
+				allKeys[bookId] = nodes.DatabaseEntry{}
 			}
 		}
 	}
+	fmt.Println("Consistent finished get all keys: ", allKeys)
 
 	for key := range allKeys {
 		entry := c.GetKey(key)
 		allKeys[key] = entry.Data[key]
 	}
-
 	// wait for reply
 	return allKeys
 }
@@ -222,14 +221,19 @@ func (c *Consistent) GetKey(key int) nodes.Response {
 	}
 	c.members[fmt.Sprint(coordinator)].ClientRequestChannel <- clientRequest
 	// wait for reply
-
+	fmt.Println("---Waiting for reply---")
 	data := <-c.members[fmt.Sprint(coordinator)].ClientResponseChannel
 	return data
 }
 
-func (c *Consistent) PutKey(borrowBody BorrowBody) {
+func (c *Consistent) PutKey(borrowBody BorrowBody) nodes.Response {
+	fmt.Println("Is this responding?")
 	hashkey := c.hashKey(fmt.Sprint(borrowBody.BookId))
+	fmt.Println("1")
+
 	coordinator, err := c.Get(fmt.Sprint(hashkey))
+	fmt.Println("2")
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -239,6 +243,12 @@ func (c *Consistent) PutKey(borrowBody BorrowBody) {
 		RequestType: nodes.PUT,
 		BookID:      borrowBody.BookId,
 	}
+	fmt.Println("3")
+
 	c.members[coordinator].ClientRequestChannel <- putRequest
 	// wait for reply
+	fmt.Println("Waiting for reply")
+	res := <-c.members[coordinator].ClientResponseChannel
+	fmt.Println("Reply replied")
+	return res
 }

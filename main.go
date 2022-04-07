@@ -8,6 +8,7 @@ import (
 
 	// server "gogogogo/server"
 	"log"
+	"strconv"
 	"sync"
 )
 
@@ -19,18 +20,22 @@ func main() {
 	fmt.Println("Initialising nodes")
 	nodeEntries := nodes.InitaliseNodes(wg)
 	consistentHash := consistent.InitaliseConsistent(nodeEntries)
-	server.StartServer(nodeEntries, consistentHash)
-	
+
 	bookIds := []string{"1", "2", "3", "4", "5", "6", "7", "8"}
-	fmt.Printf("Consistent Hash has %d nodes\n", len(consistentHash.Members()))
 	for _, bookId := range bookIds {
 		node, err := consistentHash.Get(bookId)
 		if err != nil {
 			log.Fatal(err)
 		}
 		fmt.Printf("Book %s is stored in Node %s\n", bookId, node)
+		strId, err := strconv.Atoi(bookId)
+		consistentHash.PutKey(consistent.BorrowBody{
+			BookId: strId,
+			UserId: -1,
+		})
 
 	}
+	server.StartServer(nodeEntries, consistentHash)
 
 	// manager := nodes.InitialiseManager(nodeEntries)
 	// server.StartServer(nodeEntries, &manager)

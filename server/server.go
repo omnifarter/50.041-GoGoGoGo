@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -33,6 +35,7 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent) {
 		// GET Route: /all
 		api.GET("/all", func(ctx *gin.Context) {
 			data := c.GetAllKeys()
+			fmt.Println(data)
 			ctx.JSON(200, gin.H{"data": data})
 		})
 	}
@@ -61,9 +64,23 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent) {
 		// PUT Route: /borrow
 		api.PUT("/borrow", func(ctx *gin.Context) {
 			var borrowBody consistent.BorrowBody
-			ctx.BindJSON(&borrowBody)
+			err := ctx.BindJSON(&borrowBody)
+			if err != nil {
+				println("Error:", err.Error())
+			}
+
+			jsonData, _ := ctx.GetRawData()
+
+			fmt.Println("Raw JSON data", jsonData)
+			fmt.Println(borrowBody)
+
+			x, _ := ioutil.ReadAll(ctx.Request.Body)
+			fmt.Printf("THIS IS FROM IOUTIL: %s\n", string(x))
+
 			c.PutKey(borrowBody)
-			ctx.JSON(200, gin.H{"status": "borrowed"})
+
+			ctx.JSON(200, gin.H{"status": "approved"})
+			return
 		})
 
 		// PUT Route: /return

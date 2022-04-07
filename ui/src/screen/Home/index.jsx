@@ -1,5 +1,4 @@
 // hardcoded data for display
-
 import { useEffect, useState } from "react"
 import { Button } from "react-bootstrap"
 import Book from "../../components/Book"
@@ -84,7 +83,7 @@ function Home() {
       <div className="App">
         <header className="App-header">
           <h1 className='Library-title'>GoGoGoGo - Digital Library</h1>
-          <Button variant="info" onClick={() => openMyBooks()}>View My Books</Button>
+          <Button variant="info" onClick={() => openMyBooks()}>View My Books</Button>{' '}
         </header>
   
         <div className="Books-library">

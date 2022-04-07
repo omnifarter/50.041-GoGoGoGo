@@ -7,6 +7,24 @@ export const getAllBooks = async () => {
         // mode: 'cors',
     })
     if (response.ok) {
+        const res =  await response.json()
+        console.log(res)
+        return res
+    } else {
+        throw new Error(`Error ${response.status}`)
+    }
+}
+
+export const getBook = async (bookId) => {
+    const response = await fetch(`${BACKEND_URL}/books/get?` + new URLSearchParams({
+        bookId
+    }),
+    {
+        method:"GET",
+        // mode: 'cors',
+
+    })
+    if (response.ok) {
         return await response.json()
     } else {
         throw new Error(`Error ${response.status}`)
@@ -22,6 +40,7 @@ export const borrowBook = async (bookId,userId) => {
         }
     })
     if (response.ok) {
+        console.log("Response OK")
         return await response.json()
     } else {
         throw new Error(`Error ${response.status}`)

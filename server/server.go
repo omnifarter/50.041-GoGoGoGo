@@ -1,9 +1,13 @@
 package server
 
 import (
+	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
+	"strconv"
 
-	"gogogogo/helpers"
+	consistent "gogogogo/consistent"
 	nodes "gogogogo/nodes"
 
 	// gin library
@@ -16,9 +20,11 @@ import (
 
 type Book struct {
 	gorm.Model
-	ID      int `gorm:"primaryKey"`
-	Title   string
-	Img_url string
+	ID       int `gorm:"primaryKey"`
+	Title    string
+	Img_url  string
+	borrowed bool
+	user     User
 }
 
 type User struct {
@@ -27,7 +33,7 @@ type User struct {
 	name string
 }
 
-func StartServer(nodeEntries map[int]*nodes.Node, manager *nodes.Manager, db *gorm.DB) {
+func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *gorm.DB) {
 	router := gin.Default()
 
 	// cors setting
@@ -45,11 +51,50 @@ func StartServer(nodeEntries map[int]*nodes.Node, manager *nodes.Manager, db *go
 	{
 		// GET Route: /all
 		api.GET("/all", func(ctx *gin.Context) {
-			data := manager.GetAllKeys() //maybe instead of getting all keys from nodes, we get from the DB straight
-			bookId := helpers.GetLatestDatabaseEntryValue(data.Data)
+			data := c.GetAllKeys()
+			fmt.Println(data)
+			var returnResponse []Book
+			for bookId, databaseEntry := range data {
+				var bookData Book
+				db.Unscoped().First(&bookData, bookId)
+				if databaseEntry.Value == -1 { // no user
+					bookData.borrowed = false
+				} else { // get user data
+					var userData User
+					db.Unscoped().First(&userData, databaseEntry.Value)
+					bookData.user = userData
+				}
+				returnResponse = append(returnResponse, bookData)
+			}
+			ctx.JSON(200, gin.H{"data": returnResponse})
+		})
+	}
+
+	api = router.Group("/books")
+	{
+		//GET Route: /books
+		api.GET("/get", func(ctx *gin.Context) {
+			type GetBookBody struct {
+				bookId int
+			}
+			queryParams := ctx.Request.URL.Query()
+			val, err := strconv.Atoi(queryParams["bookId"][0])
+			if err != nil { // this means that the bookId is not an int.
+				log.Fatal(err)
+			}
+			data := c.GetKey(val)
 			var bookData Book
-			db.Unscoped().First(&bookData, bookId)
+			db.Unscoped().First(&bookData, val)
+			if data.Data[val].Value == -1 { // no user
+				bookData.borrowed = false
+			} else { // get user data
+				var userData User
+				db.Unscoped().First(&userData, data.Data[val].Value)
+				bookData.user = userData
+			}
+
 			ctx.JSON(200, gin.H{"data": bookData})
+
 		})
 
 	}
@@ -59,10 +104,24 @@ func StartServer(nodeEntries map[int]*nodes.Node, manager *nodes.Manager, db *go
 
 		// PUT Route: /borrow
 		api.PUT("/borrow", func(ctx *gin.Context) {
-			var borrowBody nodes.BorrowBody
-			ctx.BindJSON(&borrowBody)
-			manager.PutKey(borrowBody)
-			ctx.JSON(200, gin.H{"status": "borrowed"})
+			var borrowBody consistent.BorrowBody
+			err := ctx.BindJSON(&borrowBody)
+			if err != nil {
+				println("Error:", err.Error())
+			}
+
+			jsonData, _ := ctx.GetRawData()
+
+			fmt.Println("Raw JSON data", jsonData)
+			fmt.Println(borrowBody)
+
+			x, _ := ioutil.ReadAll(ctx.Request.Body)
+			fmt.Printf("THIS IS FROM IOUTIL: %s\n", string(x))
+
+			c.PutKey(borrowBody)
+
+			ctx.JSON(200, gin.H{"status": "approved"})
+			return
 		})
 
 		// PUT Route: /return

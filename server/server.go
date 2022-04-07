@@ -1,37 +1,56 @@
 package server
 
 import (
-	"fmt"
+	"log"
 	"net/http"
+	"strconv"
 
-	"gogogogo/nodes"
+	consistent "gogogogo/consistent"
+	nodes "gogogogo/nodes"
+
 	// gin library
 	"github.com/gin-gonic/gin"
+	// cors
+	"github.com/gin-contrib/cors"
 )
 
-type BorrowBody struct {
-	BookId int `json:"bookId"`
-	UserId int `json:"userId"`
-}
-
-func StartServer(nodeEntries map[int]*nodes.Node) {
+func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent) {
 	router := gin.Default()
+
+	// cors setting
+	// router.Use(cors.New(cors.Config{
+	// 	AllowOrigins:     []string{"https://localhost:3000"},
+	// 	AllowMethods:     []string{"GET", "PUT"},
+	// 	AllowHeaders:     []string{"Origin"},
+	// 	ExposeHeaders:    []string{"Content-Length"},
+	// 	AllowCredentials: true,
+	// }))
+	router.Use(cors.Default())
 
 	// create API route group - library functions
 	api := router.Group("/")
 	{
 		// GET Route: /all
 		api.GET("/all", func(ctx *gin.Context) {
-			nodeEntries[nodes.COORDINATOR].ClientRequestChannel <- nodes.Request{
-				Id:          2,
-				ClientID:    0,
-				RequestType: nodes.GET,
-				BookID:      0, //TODO: implement a way to get all IDs
-			}
+			data := c.GetAllKeys()
+			ctx.JSON(200, gin.H{"data": data})
+		})
+	}
 
-			data := <-nodeEntries[nodes.COORDINATOR].ClientResponseChannel
-			fmt.Println(data)
-			ctx.JSON(200, gin.H{"data": data.Data})
+	api = router.Group("/books")
+	{
+		//GET Route: /books
+		api.GET("/", func(ctx *gin.Context) {
+			type GetBookBody struct {
+				bookId int
+			}
+			queryParams := ctx.Request.URL.Query()
+			val, err := strconv.Atoi(queryParams["bookId"][0])
+			if err != nil { // this means that the bookId is not an int.
+				log.Fatal(err)
+			}
+			data := c.GetKey(val)
+			ctx.JSON(200, gin.H{"data": data})
 
 		})
 	}
@@ -41,15 +60,9 @@ func StartServer(nodeEntries map[int]*nodes.Node) {
 
 		// PUT Route: /borrow
 		api.PUT("/borrow", func(ctx *gin.Context) {
-			var borrowBody BorrowBody
+			var borrowBody consistent.BorrowBody
 			ctx.BindJSON(&borrowBody)
-			nodeEntries[nodes.COORDINATOR].ClientRequestChannel <- nodes.Request{
-				Id:          0,
-				ClientID:    borrowBody.UserId,
-				RequestType: nodes.PUT,
-				BookID:      borrowBody.BookId,
-			}
-
+			c.PutKey(borrowBody)
 			ctx.JSON(200, gin.H{"status": "borrowed"})
 		})
 

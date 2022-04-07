@@ -7,21 +7,16 @@ import (
 )
 
 // node struct
-
 const (
 	NUMBER_OF_NODES = 3
-	COORDINATOR     = 0
+	// COORDINATOR     = 0
 
 	READ  = 0
 	WRITE = 1
 	GET   = 2
 	PUT   = 3
+	REPLY = 4
 )
-
-// type Election struct {
-// 	id     int
-// 	status string
-// }
 
 type Request struct {
 	Id          int
@@ -31,8 +26,9 @@ type Request struct {
 }
 
 type Response struct {
-	Data []DatabaseEntry
+	Data map[int]DatabaseEntry
 }
+
 type DatabaseEntry struct {
 	Value int `json:"value"`
 	Clock int `json:"clock"`
@@ -55,6 +51,11 @@ type ReadMessage struct {
 	// value: db entry
 	databaseEntryMap map[int]DatabaseEntry
 }
+
+type ReplyMessage struct {
+	sender   int
+	receiver int
+}
 type Client struct {
 	id       int
 	borrowed map[int]int
@@ -67,14 +68,14 @@ type Node struct {
 
 	// ring related info
 	ring        map[int]*Node // key: node id, value: node
-	coordinator *Node
+	// coordinator *Node
 	predecessor *Node
 	successor   *Node
 
 	// database (TBC on the types for key-value)
 	// key: book id
 	// value: db entry (clock + value)
-	database map[int]DatabaseEntry
+	Database map[int]DatabaseEntry
 
 	// election
 	// election Election
@@ -84,15 +85,27 @@ type Node struct {
 	ClientResponseChannel chan Response
 	readChannel           chan ReadMessage
 	writeChannel          chan WriteMessage
+	replyChannel          chan ReplyMessage
+	// electChannel          chan Election
+	killChannel chan bool
 
 	// faulty node
 	failed bool
 }
 
-func (n *Node) listenRead(wg *sync.WaitGroup) {
+// type Election struct {
+// 	sender int
+// }
+
+// the node that realises the timeout will ask all nodes how many keys are they coordinator of.
+// all node will reply with how many keys they are coordinator of.
+// that node will choose the coordinator based on
+
+func (n *Node) listen(wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		select {
+		// listening for read opertaions
 		case read_msg := <-n.readChannel:
 			fmt.Printf("Node %d: Received READ message from Node %d\n", read_msg.sender, read_msg.receiver)
 			if _, ok := read_msg.databaseEntryMap[n.id]; ok {
@@ -100,39 +113,50 @@ func (n *Node) listenRead(wg *sync.WaitGroup) {
 				// compare which is most updated
 				fmt.Println("Read message has traversed ring")
 				fmt.Println(read_msg.databaseEntryMap)
-				latest_clock := -1
-				dataEntries := make([]DatabaseEntry, 0)
+				clock := -1
+				var dataEntry DatabaseEntry
 				for _, entry := range read_msg.databaseEntryMap {
-					if latest_clock < entry.Clock {
-						latest_clock = entry.Clock
-						dataEntries = make([]DatabaseEntry, 0)
-						dataEntries = append(dataEntries, entry)
-					} else if latest_clock == entry.Clock {
-						dataEntries = append(dataEntries, entry)
+					if clock < entry.Clock {
+						clock = entry.Clock
+						dataEntry = entry
 					}
 				}
-				fmt.Printf("Node %d: Sending %d to Client \n", n.id, dataEntries)
+				fmt.Printf("Node %d: Sending %d to Client \n", n.id, dataEntry)
 
-				n.ClientResponseChannel <- Response{dataEntries}
+				
+				response := Response{make(map[int]DatabaseEntry)}
+				response.Data[read_msg.key] = dataEntry
+				n.ClientResponseChannel <- response
+				
 			} else {
 				// append own entry
-				read_msg.databaseEntryMap[n.id] = n.database[read_msg.key]
+				read_msg.databaseEntryMap[n.id] = n.Database[read_msg.key]
 				read_msg.sender = n.id
 				read_msg.receiver = n.successor.id
 				// and pass on the msg
 				fmt.Printf("Node %d: Sending READ message to Node %d\n", n.id, read_msg.receiver)
 				n.successor.readChannel <- read_msg
+				// wait for reply
+				select {
+				case reply_msg := <-n.replyChannel:
+					fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
+				case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
+					fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, read_msg.receiver) //TODO:this shouldn't run if ACK is received
+				}
 			}
-		default:
-			time.Sleep(5 * time.Millisecond)
-		}
-	}
-}
+			// reply ACK sender
+			fmt.Printf("Node %d: Sending REPLY message to Node %d\n", n.id, read_msg.sender)
+			n.ring[read_msg.sender].replyChannel <- ReplyMessage{n.id, read_msg.sender}
 
-func (n *Node) listenClient(wg *sync.WaitGroup) {
-	defer wg.Done()
-	for {
-		select {
+		// listening for write operations
+		case write_msg := <-n.writeChannel:
+			fmt.Printf("Node %d: Received WRITE operation \n", n.id)
+			n.Database[write_msg.key] = write_msg.value
+			// reply ACK
+			fmt.Printf("Node %d: Sending REPLY message to Node %d\n", n.id, write_msg.sender)
+			n.ring[write_msg.sender].replyChannel <- ReplyMessage{n.id, write_msg.sender}
+
+		// listening for client requests
 		case client_msg := <-n.ClientRequestChannel:
 			RequestType := client_msg.RequestType
 			if RequestType == GET {
@@ -140,7 +164,7 @@ func (n *Node) listenClient(wg *sync.WaitGroup) {
 				// retrieve the value for the key
 				key := client_msg.BookID
 				fmt.Printf("Node %d: Retrieving value for Book ID %d\n", n.id, client_msg.BookID)
-				currentValue := n.database[key]
+				currentValue := n.Database[key]
 				valueMap := make(map[int]DatabaseEntry)
 				valueMap[n.id] = currentValue
 				readMsg := ReadMessage{
@@ -151,16 +175,23 @@ func (n *Node) listenClient(wg *sync.WaitGroup) {
 				}
 				// send to the read channel of the successor
 				n.successor.readChannel <- readMsg
+				// wait for reply
+				select {
+				case reply_msg := <-n.replyChannel:
+					fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
+				case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
+					fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, readMsg.receiver) //TODO:this shouldn't run if ACK is received
+				}
 			} else {
 				fmt.Printf("Node %d: Received a PUT request from Client %d \n", n.id, client_msg.ClientID)
 				// write the value for key specified + increment the clock
 				newValue := client_msg.ClientID
 				newEntry := DatabaseEntry{
 					newValue,
-					n.database[client_msg.BookID].Clock + 1,
+					n.Database[client_msg.BookID].Clock + 1,
 				}
 				fmt.Printf("Node %d: Updating value for Book ID %d \n", n.id, client_msg.BookID)
-				n.database[client_msg.BookID] = newEntry
+				n.Database[client_msg.BookID] = newEntry
 
 				// broadcast to other nodes
 				fmt.Printf("Node %d: Broadcasting the updated value for Book ID %d \n", n.id, client_msg.BookID)
@@ -172,43 +203,55 @@ func (n *Node) listenClient(wg *sync.WaitGroup) {
 						newEntry,
 					}
 					node.writeChannel <- writeMsg
+					// wait for reply
+					select {
+					case reply_msg := <-n.replyChannel:
+						fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
+					case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
+						fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, writeMsg.receiver)
+					}
 				}
 				fmt.Printf("Node %d: Updating of Value for Book ID has been completed \n", n.id)
+				// Node replies ACK client
+				fmt.Printf("Node %d: Sending REPLY to Cliet\n", n.id)
+				n.ClientResponseChannel <- Response{} // Empty response means REPLY ACK
 			}
+
+		// listening for election
+		// case election := <-n.electChannel:
+
+		// for killing the node
+		case <-n.killChannel:
+			n.failed = true
+			return
+
+		default:
+			time.Sleep(5 * time.Millisecond)
 		}
 	}
 }
 
-func (n *Node) listenWrite(wg *sync.WaitGroup) {
-	defer wg.Done()
-	for {
-		select {
-		case write_msg := <-n.writeChannel:
-			fmt.Printf("Node %d: Received WRITE operation \n", n.id)
-			n.database[write_msg.key] = write_msg.value
-		}
-	}
-}
-
-func Initalise(wg *sync.WaitGroup) map[int]*Node {
+func InitaliseNodes(wg *sync.WaitGroup) map[int]*Node {
 
 	nodeEntries := map[int]*Node{}
 	for i := 0; i < NUMBER_OF_NODES; i++ {
 		node := Node{
 			id:                    i,
-			database:              map[int]DatabaseEntry{},
+			Database:              map[int]DatabaseEntry{},
 			ClientRequestChannel:  make(chan Request),
 			ClientResponseChannel: make(chan Response),
 			readChannel:           make(chan ReadMessage),
 			writeChannel:          make(chan WriteMessage),
-			failed:                false,
+			killChannel:           make(chan bool),
+			// electChannel:          make(chan Election),
+			failed: false,
 		}
 		nodeEntries[i] = &node
 	}
 
 	for i := 0; i < NUMBER_OF_NODES; i++ {
 		node := nodeEntries[i]
-		node.coordinator = nodeEntries[COORDINATOR]
+		// node.coordinator = nodeEntries[COORDINATOR]
 		if i == 0 {
 			node.predecessor = nodeEntries[NUMBER_OF_NODES-1]
 			node.successor = nodeEntries[i+1]
@@ -224,13 +267,13 @@ func Initalise(wg *sync.WaitGroup) map[int]*Node {
 			node.ring = nodeEntries
 		}
 
-		if node.id == node.coordinator.id {
-			wg.Add(1)
-			go node.listenClient(wg)
-		}
-		wg.Add(2)
-		go node.listenRead(wg)
-		go node.listenWrite(wg)
+		// if node.id == node.coordinator.id {
+		// 	wg.Add(1)
+		// 	go node.listenClient(wg)
+		// }
+		wg.Add(1)
+		go node.listen(wg)
+		// go node.listenWrite(wg)
 	}
 	return nodeEntries
 

@@ -1,22 +1,26 @@
+import { useState } from "react";
 import { Button } from "react-bootstrap";
 import { getAllBooks, borrowBook } from "../../helpers/APIs"
+import ReactJson from 'react-json-view'
+
 function Test() {
     
+    const [response, setResponse] = useState({})
     const getAllBooksTest = async () => {
-        const response = await getAllBooks()
-
-        console.log(response)
+        const data = await getAllBooks()
+        setResponse(data)
     }
 
     const borrowBookTest = async () => {
-        const response = await borrowBook(0,0)
-        console.log(response)
+        const data = await borrowBook(0,0)
+        setResponse(data)
     }
     
     return (
         <div>
             <Button onClick={getAllBooksTest}>Get all books</Button>
             <Button onClick={borrowBookTest}>Borrow Book 0</Button>
+            <ReactJson src={response} />
         </div>
     );
 }

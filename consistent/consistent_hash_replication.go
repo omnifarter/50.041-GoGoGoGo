@@ -23,6 +23,11 @@ type BorrowBody struct {
 	UserId int `json:"userId"`
 }
 
+type BookBody struct {
+	Title string `json:"Title"`
+	Img_url string `json:"Img_url"`
+}
+
 type uints []uint32
 
 // Len returns the length of the uints array.
@@ -299,4 +304,12 @@ func findMaxId(ids []string) int {
 		}
 	}
 	return max
+}
+
+func addBook() {
+
+}
+
+func removeBook() {
+
 }

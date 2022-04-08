@@ -34,12 +34,14 @@ import { borrowBook, getAllBooks } from "../../helpers/APIs"
 function Home() {
     const [borrow, setBorrow] = useState(false)
     const [myBooks, setMyBooks] = useState(false)
+    const [myBookList, setMyBookList] = useState(false)
     const [selectedBook, setSelectedBook] = useState(emptyBook)
     const [books, setBooks] = useState([])
 
     const fetchAllBooks = async () => {
         const booksFetched = await getAllBooks()
         setBooks(booksFetched.data)
+        setMyBookList(booksFetched.data.filter(b=>{if(b.Borrowed && b.UserId==0) return b}))
     }
     // open the borrow modal
     const openBook = (book) => {
@@ -68,7 +70,7 @@ function Home() {
   
     // parameter: client id
     const confirmBorrow = async (id) => {
-      await borrowBook(selectedBook.id,id)
+      await borrowBook(selectedBook.Id,id)
       setBorrow(false)
     }
   
@@ -77,7 +79,7 @@ function Home() {
     }, [])
     useEffect(() => {
       fetchAllBooks()
-    }, [borrow])
+    }, [borrow,myBooks])
   
     return (
       <div className="App">
@@ -89,12 +91,12 @@ function Home() {
         <div className="Books-library">
           <h4>View All Available Books</h4>
           <div className='All-books'>  
-            {books && books.map((b) => <Book key={b.id} book={b} openBook={openBook} />)}
+            {books && books.map((b) => !b.Borrowed && <Book key={b.id} book={b} openBook={openBook} />)}
           </div>
         </div>
         
         <Borrow show={borrow} book={selectedBook} closeBorrow={closeBorrow} confirmBorrow={confirmBorrow} />
-        <MyBooks show={myBooks} closeMyBooks={closeMyBooks} myBooks={books} />
+        <MyBooks show={myBooks} closeMyBooks={closeMyBooks} myBooks={myBookList} />
       </div>
     );
   }

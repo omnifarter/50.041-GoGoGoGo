@@ -88,3 +88,19 @@ export const removeNode = async () => {
         throw new Error(`Error ${response.status}`)
     }
 }
+
+export const addBook = async (bookTitle,bookImgUrl) => {
+    const response = await fetch(`${BACKEND_URL}/books/add`,{
+        method:"PUT",
+        body:JSON.stringify({
+            "Title":bookTitle,
+            "Img_url":bookImgUrl,
+        })
+    })
+    if (response.ok) {
+        console.log("Response OK")
+        return await response.json()
+    } else {
+        throw new Error(`Error ${response.status}`)
+    }
+}

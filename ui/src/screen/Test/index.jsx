@@ -1,6 +1,6 @@
 import { Button, Form, Col, Row, Container } from "react-bootstrap";
 import { useEffect, useState } from "react";
-import {getBook,getAllBooks,borrowBook,addNode,removeNode, getNodes} from '../../helpers/APIs'
+import {getBook,getAllBooks,borrowBook,addNode,removeNode, getNodes, addBook} from '../../helpers/APIs'
 import ReactJson from 'react-json-view'
 
 function Test() {
@@ -10,10 +10,6 @@ function Test() {
     const [bookTitleAdd, setBookTitleAdd] = useState('');
     const [bookURLAdd, setBookURLAdd] = useState('');
     const [userId, setUserId] = useState()
-
-
-    const addBook = () => { }; //TODO: implement
-    const removeBook = () => { }; //TODO: implement
 
     const getBookTest = async () => {
         const data = await getBook(bookId)
@@ -52,12 +48,13 @@ function Test() {
     const bookURLHandler = (e) => {
         setBookURLAdd(e.target.value);
     };
-    const addBookHandler = (e) => {
+    
+    const addBookHandler = async (e) => {
         e.preventDefault();
         setBookTitleAdd('');
         setBookURLAdd('');
-        console.log(bookTitleAdd+','+bookURLAdd);
-        return alert(bookTitleAdd + ',' + bookURLAdd)
+        await addBook(bookTitleAdd,bookURLAdd)
+
     }
 
     const bookIdHandler = (e) => {
@@ -93,7 +90,7 @@ function Test() {
                 <Row>
                     <Col>
                         <h3 className="Library-title">Add Book!</h3>
-                        <div className="App-header">
+                        <div>
                             <Form onSubmit={addBookHandler}>
                                 <Form.Group className="mb-6">
                                     <Form.Label>Book Title</Form.Label>

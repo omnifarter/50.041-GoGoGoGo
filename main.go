@@ -25,6 +25,9 @@ func main() {
 	consistentHash := consistent.InitaliseConsistent(nodeEntries, wg)
 	db, _ := gorm.Open(sqlite.Open("books.db"), &gorm.Config{})
 
+	// TODO: call the db and get all the IDs instead
+	
+
 	bookIds := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8"}
 	for _, bookId := range bookIds {
 		node, err := consistentHash.Get(bookId)

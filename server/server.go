@@ -115,7 +115,37 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 		})
 
 		// TODO POST route: /add
-		api.GET("/add", func(ctx *gin.Context) {})
+		api.PUT("/add", func(ctx *gin.Context) {
+			var bookBody consistent.BookBody
+			err := ctx.BindJSON(&bookBody)
+			if err != nil {
+				println("Error:", err.Error())
+			}
+			fmt.Println("bookBody", bookBody)
+
+			// add to sqlite DB
+			bookModel := Book{
+				Title:   bookBody.Title,
+				Img_url: bookBody.Img_url,
+			}
+			db.Omit("CreatedAt", "UpdatedAt", "DeletedAt").Create(&bookModel)
+
+			// retrieve the created book
+			var createdBook Book
+			db.Unscoped().First(&createdBook, "title = ?", bookBody.Title)
+			fmt.Println("createdBook", createdBook)
+
+			// extract ID of the created book
+			borrowBody := consistent.BorrowBody{
+				BookId: createdBook.ID,
+				UserId: -1,
+			}
+			fmt.Println("borrowBody", borrowBody)
+
+			// put the book into the hash ring
+			c.PutKey(borrowBody)
+			ctx.JSON(200, gin.H{"data": createdBook})
+		})
 
 		// TODO POST route: /remove
 		api.GET("/remove", func(ctx *gin.Context) {})

@@ -1,9 +1,12 @@
 import React from 'react'
 import { Modal, Button, Table } from 'react-bootstrap';
-
+import {borrowBook} from '../../helpers/APIs'
 // import './MyBooks.css';
 
 const MyBooks = ({show, closeMyBooks, myBooks}) => {
+  const onReturn = (bookId) => {
+    borrowBook(bookId, -1)
+  }
   return (
     <Modal show={show} onHide={closeMyBooks}>
       <Modal.Header closeButton>
@@ -19,10 +22,11 @@ const MyBooks = ({show, closeMyBooks, myBooks}) => {
           </tr>
           <tbody>
             {myBooks && myBooks.map((book, index) => 
+            book &&
               <tr key={index}>
                 <td>{index+1}</td>
-                <td>{book.title}</td>
-                <td><Button variant="outline-primary">Return</Button></td>
+                <td>{book.Title}</td>
+                <td><Button variant="outline-primary" onClick={()=>onReturn(book.Id)}>Return</Button></td>
               </tr>
             )}
           </tbody>

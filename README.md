@@ -2,18 +2,19 @@
 ### Team GoGoGoGo
 
 # Implemented
-- Multiple nodes 
-- READ & WRITE operations
-- Receive requests from 'client' 
+- Initialised nodes as GO routines
+- Nodes hold key-value data (in-memory), with the bookId as a key, and userId as a value.
+- Consistent hashing with replication, nodes are organised in a ring structure
+- Add / remove nodes from ring
+- SQLite database to hold book and user information
+- Http server with required endpoints
+- Frontend
 # Remaining Features
-## Before Checkpoint 3
-- Electing of coordinator (fault tolerance)
-    - Might be using Ring Election Protocol
-- Consistent hashing (horizontal scaling)
-    - Set up the algorithm to select the coordinator nodes for each key
-- Implement a partition-aware client library that routes requests directly to the appropriate coordinator nodes
-    - Keeps track of the healthy coordinators
-    - When coordinator wins an election, updates the client library
-- Basic frontend
-## Before Final Demo
-- Full frontend for demonstration
+- Fault tolerance
+  - How do keys get re-distributed? Do they need to?
+  - When a node restarts, how does it get the latest key information?
+- Test cases
+  - Show concurrent writes
+    - Conflict resolution
+  - Show killing of a node
+    - Reconcilation of data

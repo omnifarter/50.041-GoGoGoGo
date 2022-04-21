@@ -41,14 +41,6 @@ type User struct {
 func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *gorm.DB) {
 	router := gin.Default()
 
-	// cors setting
-	// router.Use(cors.New(cors.Config{
-	// 	AllowOrigins:     []string{"https://localhost:3000"},
-	// 	AllowMethods:     []string{"GET", "PUT"},
-	// 	AllowHeaders:     []string{"Origin"},
-	// 	ExposeHeaders:    []string{"Content-Length"},
-	// 	AllowCredentials: true,
-	// }))
 	router.Use(cors.Default())
 
 	// create API route group - library functions
@@ -176,9 +168,11 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 
 	api = router.Group("/nodes")
 	{
-		// GET Route: /kill
+		/*
+			This route is used to get all the keys for each node.
+		*/
 		api.GET("/all", func(ctx *gin.Context) {
-			nodes := len(c.Members())
+			nodes := nodeEntries[0].PrintKeyStructure()
 			ctx.JSON(200, gin.H{"data": nodes})
 		})
 

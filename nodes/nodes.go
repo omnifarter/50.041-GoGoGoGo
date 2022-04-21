@@ -2,6 +2,7 @@ package nodes
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 )
@@ -102,205 +103,40 @@ type Update struct {
 	status    int
 }
 
-// the node that realises the timeout will ask all nodes how many keys are they coordinator of.
-// all node will reply with how many keys they are coordinator of.
-// that node will choose the coordinator based on
-
+/*
+A go routine that listens on the nodes' channels.
+*/
 func (n *Node) listen(wg *sync.WaitGroup) {
 	defer wg.Done()
-	fmt.Printf("Node %v is listening...\n", n.id)
 	for {
 		select {
 		// listening for read opertaions
 		case read_msg := <-n.readChannel:
-			fmt.Printf("Node %d: Received READ message from Node %d\n", read_msg.receiver, read_msg.sender)
-			// reply ACK sender
-			fmt.Printf("Node %d: Sending ACK message to Node %d\n", n.id, read_msg.sender)
-			n.ring[read_msg.sender].replyChannel <- ReplyMessage{n.id, read_msg.sender}
-			if _, ok := read_msg.databaseEntryMap[n.id]; ok {
-				// message has traversed the ring once
-				// compare which is most updated
-				fmt.Println("Read message has traversed ring")
-				fmt.Println(read_msg.databaseEntryMap)
-				clock := -1
-				var dataEntry DatabaseEntry
-				for _, entry := range read_msg.databaseEntryMap {
-					if clock < entry.Clock {
-						clock = entry.Clock
-						dataEntry = entry
-					}
-				}
-				fmt.Printf("Node %d: Sending %d to Client \n", n.id, dataEntry)
-
-				response := Response{make(map[int]DatabaseEntry)}
-				response.Data[read_msg.key] = dataEntry
-				fmt.Println("Sending response", response)
-				n.ClientResponseChannel <- response
-
-			} else {
-				// append own entry
-				read_msg.databaseEntryMap[n.id] = n.Database[read_msg.key]
-				read_msg.sender = n.id
-				read_msg.receiver = n.successor.id
-				// and pass on the msg
-				fmt.Printf("Node %d: Sending READ message to Node %d\n", n.id, read_msg.receiver)
-				n.successor.readChannel <- read_msg
-				// wait for reply
-				select {
-				case reply_msg := <-n.replyChannel:
-					fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
-				case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
-					fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, read_msg.receiver)
-				}
-			}
-
+			n.onReadMessage(read_msg)
 		// listening for write operations
 		case write_msg := <-n.writeChannel:
-			fmt.Printf("Node %d: Received WRITE operation \n", n.id)
-			n.Database[write_msg.key] = write_msg.value
-			// reply ACK
-			fmt.Printf("Node %d: Sending REPLY message to Node %d\n", n.id, write_msg.sender)
-			n.ring[write_msg.sender].replyChannel <- ReplyMessage{n.id, write_msg.sender}
-
+			n.onWriteMessage(write_msg)
 		// listening for client requests
 		case client_msg := <-n.ClientRequestChannel:
-			RequestType := client_msg.RequestType
-			if RequestType == GET {
-				fmt.Printf("Node %d: Received a GET request from Client %d\n", n.id, client_msg.ClientID)
-				// retrieve the value for the key
-				key := client_msg.BookID
-				fmt.Printf("Node %d: Retrieving value for Book ID %d\n", n.id, client_msg.BookID)
-				currentValue := n.Database[key]
-				valueMap := make(map[int]DatabaseEntry)
-				valueMap[n.id] = currentValue
-				readMsg := ReadMessage{
-					n.id,
-					n.successor.id,
-					key,
-					valueMap,
-				}
-				// send to the read channel of the successor
-				n.successor.readChannel <- readMsg
-				// wait for reply
-				select {
-				case reply_msg := <-n.replyChannel:
-					fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
-				case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
-					fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, readMsg.receiver) //TODO:this shouldn't run if ACK is received
-					// node failed -> rehash
-				}
 
-			} else {
-				fmt.Printf("Node %d: Received a PUT request from Client %d \n", n.id, client_msg.ClientID)
-				// write the value for key specified + increment the clock
-				newValue := client_msg.ClientID
-				newEntry := DatabaseEntry{
-					newValue,
-					n.Database[client_msg.BookID].Clock + 1,
-				}
-				fmt.Printf("Node %d: Updating value for Book ID %d \n", n.id, client_msg.BookID)
-				n.Database[client_msg.BookID] = newEntry
+			switch client_msg.RequestType {
+			case GET:
+				n.onClientGetRequest(client_msg)
 
-				// broadcast to other nodes
-				fmt.Printf("Node %d: Broadcasting the updated value for Book ID %d \n", n.id, client_msg.BookID)
-				for nodeID, node := range n.ring {
-					if nodeID != n.id {
-						writeMsg := WriteMessage{
-							n.id,
-							nodeID,
-							client_msg.BookID,
-							newEntry,
-						}
-						node.writeChannel <- writeMsg
-
-						// wait for reply
-						select {
-						case reply_msg := <-n.replyChannel:
-							fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
-						case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
-							fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, writeMsg.receiver)
-						}
-					}
-				}
-				fmt.Printf("Node %d: Updating of Value for Book ID has been completed \n", n.id)
-				// Node replies ACK client
-				fmt.Printf("Node %d: Sending REPLY to Client \n", n.id)
-				n.ClientResponseChannel <- Response{} // Empty response means REPLY ACK
-				fmt.Println("Done")
+			case PUT:
+				n.onClientPutRequest(client_msg)
 			}
 
 		// listening for update to ring structure
 		case update := <-n.updateChannel:
+			switch update.status {
+			case NEW_NODE:
+				n.onAddNewNode(update)
+			case FAILED_NODE:
+
+			}
 			if update.status == NEW_NODE {
-				newList := update.structure
-				if !isIn(n.id, newList) {
-					// append its id into the msg
-					n.successor.updateChannel <- Update{
-						append(newList, n),
-						-1,
-						NEW_NODE,
-					}
-				} else {
-					if findIndex(n.id, newList) == 0 {
-						// back to the node that requested an update of ring structure
-						n.successor = newList[1]
-						n.predecessor = newList[len(newList)-1]
-						n.ring = n.predecessor.ring
-						fmt.Println("Updating of Ring Structure has been completed")
-						n.PrintRingStructure()
-					} else {
-						// update predecessor
-						if findIndex(n.id, newList) == 1 {
-							n.predecessor = newList[0]
-						} else if findIndex(n.id, newList) == len(newList)-1 {
-							// update successor
-							n.successor = newList[0]
-						}
-						n.successor.updateChannel <- update
-						// add new node into their ring structure
-						n.ring[newList[0].id] = newList[0]
-					}
-				}
 			} else if update.status == FAILED_NODE {
-				newList := update.structure
-				if !isIn(n.id, newList) {
-					// if successor has failed, contact its successor
-					if n.successor.failed {
-						n.successor.successor.updateChannel <- Update{
-							append(newList, n),
-							n.successor.id,
-							FAILED_NODE,
-						}
-					} else {
-						n.successor.updateChannel <- Update{
-							append(newList, n),
-							update.failed,
-							FAILED_NODE,
-						}
-					}
-				} else {
-					// returned to itself
-					idx := findIndex(n.id, newList)
-					predecessorId := idx - 1
-					successorId := idx + 1
-					if idx == 0 {
-						predecessorId = len(newList) - 1
-					} else if idx == len(newList)-1 {
-						successorId = 0
-					}
-					n.successor = newList[successorId]
-					n.predecessor = newList[predecessorId]
-
-					if idx == len(newList)-1 {
-						fmt.Println("Updating of Ring Structure has been completed")
-						n.PrintRingStructure()
-					} else {
-						n.successor.updateChannel <- update
-					}
-
-					// remove the failed node from the ring structure
-					delete(n.ring, update.failed)
-				}
 			}
 
 		// for killing the node
@@ -315,6 +151,223 @@ func (n *Node) listen(wg *sync.WaitGroup) {
 	}
 }
 
+/*
+When the node receives a read message
+*/
+func (n *Node) onReadMessage(read_msg ReadMessage) {
+	// reply ACK to sender
+	n.ring[read_msg.sender].replyChannel <- ReplyMessage{n.id, read_msg.sender}
+
+	if _, ok := read_msg.databaseEntryMap[n.id]; ok {
+
+		// message has traversed the ring.
+		n.onRingTraversed(read_msg)
+	} else {
+		//TODO: Check if key is even stored in local key-value datastore.
+
+		// append own entry
+		read_msg.databaseEntryMap[n.id] = n.Database[read_msg.key]
+		read_msg.sender = n.id
+		read_msg.receiver = n.successor.id
+
+		// and pass on the msg
+		n.successor.readChannel <- read_msg
+
+		// wait for reply
+		select {
+		case reply_msg := <-n.replyChannel:
+
+			fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
+		case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
+
+			fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, read_msg.receiver)
+		}
+	}
+}
+
+/*
+We take the latest clock and entry value, and send it to the ClientResponseChannel.
+*/
+func (n *Node) onRingTraversed(read_msg ReadMessage) {
+
+	clock := -1
+	var dataEntry DatabaseEntry
+
+	for _, entry := range read_msg.databaseEntryMap {
+
+		if clock < entry.Clock {
+			clock = entry.Clock
+			dataEntry = entry
+		}
+	}
+
+	response := Response{make(map[int]DatabaseEntry)}
+	response.Data[read_msg.key] = dataEntry
+	n.ClientResponseChannel <- response
+}
+
+/*
+Update local database with new value, and reply ACK to sender.
+*/
+func (n *Node) onWriteMessage(write_msg WriteMessage) {
+	n.Database[write_msg.key] = write_msg.value
+	// reply ACK to sender
+	n.ring[write_msg.sender].replyChannel <- ReplyMessage{n.id, write_msg.sender}
+}
+
+/*
+When the node receives a GET request from the client.
+*/
+func (n *Node) onClientGetRequest(client_msg Request) {
+	// retrieve the value for the key
+	key := client_msg.BookID
+	currentValue := n.Database[key]
+	valueMap := make(map[int]DatabaseEntry)
+	valueMap[n.id] = currentValue
+
+	// send to the read channel of the successor
+	readMsg := ReadMessage{
+		n.id,
+		n.successor.id,
+		key,
+		valueMap,
+	}
+	n.successor.readChannel <- readMsg
+
+	// wait for reply
+	select {
+	case reply_msg := <-n.replyChannel:
+		fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
+	case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
+		fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, readMsg.receiver) //TODO:this shouldn't run if ACK is received
+		// node failed -> rehash
+	}
+}
+
+/*
+When the node receives a PUT request from the client.
+*/
+func (n *Node) onClientPutRequest(client_msg Request) {
+
+	// write the value for key specified + increment the clock
+	newValue := client_msg.ClientID
+	newEntry := DatabaseEntry{
+		newValue,
+		n.Database[client_msg.BookID].Clock + 1,
+	}
+	n.Database[client_msg.BookID] = newEntry
+
+	// broadcast to other nodes
+	// TODO: DO NOT BROADCAST TO ALL NODES. ONLY BROADCAST TO THOSE WHO NEEDS TO HOLD THE KEY.
+	for nodeID, node := range n.ring {
+		if nodeID != n.id {
+			writeMsg := WriteMessage{
+				n.id,
+				nodeID,
+				client_msg.BookID,
+				newEntry,
+			}
+			node.writeChannel <- writeMsg
+
+			// wait for reply
+			select {
+			case reply_msg := <-n.replyChannel:
+
+				fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
+			case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
+
+				fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, writeMsg.receiver)
+			}
+		}
+	}
+
+	// Node replies ACK client with an empty Response.
+	n.ClientResponseChannel <- Response{}
+}
+
+/*
+Update ring structure when a new node has been added to the ring structure.
+*/
+func (n *Node) onAddNewNode(update Update) {
+	newList := update.structure
+	if !isIn(n.id, newList) {
+		// append its id into the msg
+		n.successor.updateChannel <- Update{
+			append(newList, n),
+			-1,
+			NEW_NODE,
+		}
+	} else {
+		if findIndex(n.id, newList) == 0 {
+			// back to the node that requested an update of ring structure
+			n.successor = newList[1]
+			n.predecessor = newList[len(newList)-1]
+			n.ring = n.predecessor.ring
+			fmt.Println("Updating of Ring Structure has been completed")
+			n.PrintRingStructure()
+		} else {
+			// update predecessor
+			if findIndex(n.id, newList) == 1 {
+				n.predecessor = newList[0]
+			} else if findIndex(n.id, newList) == len(newList)-1 {
+				// update successor
+				n.successor = newList[0]
+			}
+			n.successor.updateChannel <- update
+			// add new node into their ring structure
+			n.ring[newList[0].id] = newList[0]
+		}
+	}
+}
+
+/*
+Update ring structure when a node has been removed from the ring structure.
+*/
+func (n *Node) onDeleteNode(update Update) {
+	newList := update.structure
+	if !isIn(n.id, newList) {
+		// if successor has failed, contact its successor
+		if n.successor.failed {
+			n.successor.successor.updateChannel <- Update{
+				append(newList, n),
+				n.successor.id,
+				FAILED_NODE,
+			}
+		} else {
+			n.successor.updateChannel <- Update{
+				append(newList, n),
+				update.failed,
+				FAILED_NODE,
+			}
+		}
+	} else {
+		// returned to itself
+		idx := findIndex(n.id, newList)
+		predecessorId := idx - 1
+		successorId := idx + 1
+		if idx == 0 {
+			predecessorId = len(newList) - 1
+		} else if idx == len(newList)-1 {
+			successorId = 0
+		}
+		n.successor = newList[successorId]
+		n.predecessor = newList[predecessorId]
+
+		if idx == len(newList)-1 {
+			fmt.Println("Updating of Ring Structure has been completed")
+			n.PrintRingStructure()
+		} else {
+			n.successor.updateChannel <- update
+		}
+
+		// remove the failed node from the ring structure
+		delete(n.ring, update.failed)
+	}
+}
+
+/*
+Creates a new node.
+*/
 func CreateNode(id int, nodes map[string]*Node, wg *sync.WaitGroup) *Node {
 	// convert ring structure
 	newNode := Node{
@@ -347,6 +400,9 @@ func CreateNode(id int, nodes map[string]*Node, wg *sync.WaitGroup) *Node {
 	return &newNode
 }
 
+/*
+Prints the current ring structure as a []int.
+*/
 func (n *Node) PrintRingStructure() {
 	structure := make([]int, 0)
 	var currentNode = n
@@ -357,19 +413,43 @@ func (n *Node) PrintRingStructure() {
 	fmt.Println("New Ring Structure: ", structure)
 }
 
-func KillNode(id string, nodes map[string]*Node, wg *sync.WaitGroup) {
-	successor := nodes[id].successor
+/*
+returns the key structure, which is a map of node id to a list of keys it holds.
+e.g.
+Node 1 -> [0, 1, 2]
+Node 2 -> [1, 2, 3]
+Node 3 -> [2, 3, 4]
+...
+*/
+func (n *Node) PrintKeyStructure() map[int][]int {
+	structure := make(map[int][]int, 0)
+	var currentNode = n
+	for {
+		val, _ := structure[currentNode.id]
+		fmt.Println(structure)
+		if len(val) != 0 {
+			break
+		}
 
-	nodes[id].KillChannel <- true
+		for k := range currentNode.Database {
+			structure[currentNode.id] = append(structure[currentNode.id], k)
+		}
+		sort.Slice(structure[currentNode.id], func(i, j int) bool {
+			return structure[currentNode.id][i] < structure[currentNode.id][j]
+		})
+		currentNode = currentNode.successor
+	}
+	fmt.Println("New Ring Structure: ", structure)
+	return structure
 
-	// successor to call for update of ring structure
-	successor.UpdateRing(successor, FAILED_NODE)
-
-	wg.Done()
 }
 
+
+/*
+Called when a new node wants to join the ring, or when a successor realises a node has failed.
+*/
 func (n *Node) UpdateRing(node *Node, updateType int) {
-	fmt.Println("Updating Ring Structure...")
+
 	msg := make([]*Node, 0)
 	if updateType == NEW_NODE {
 		node.updateChannel <- Update{
@@ -386,6 +466,9 @@ func (n *Node) UpdateRing(node *Node, updateType int) {
 	}
 }
 
+/*
+Initialises NUMBER_OF_NODES.
+*/
 func InitaliseNodes(wg *sync.WaitGroup) map[int]*Node {
 
 	nodeEntries := map[int]*Node{}
@@ -435,6 +518,21 @@ func InitaliseNodes(wg *sync.WaitGroup) map[int]*Node {
 
 }
 
+/*
+called to kill a node.
+*/
+func KillNode(id string, nodes map[string]*Node, wg *sync.WaitGroup) {
+	successor := nodes[id].successor
+
+	nodes[id].KillChannel <- true
+
+	// successor to call for update of ring structure
+	successor.UpdateRing(successor, FAILED_NODE)
+
+	wg.Done()
+}
+
+
 func isInInt(num int, list []int) bool {
 	for _, i := range list {
 		if num == i {
@@ -462,38 +560,3 @@ func findIndex(num int, list []*Node) int {
 	return -1
 }
 
-// electing coordinator
-
-// broadcast
-
-// get(key)
-//  The get operation finds the nodes where the object
-//	associated with the given key is located and returns either a single
-//	object or a list of objects with conflicting versions along with a context .
-// 	The context contains encoded metadata about the object that is
-// 	meaningless to the caller and includes information such as the version
-// 	of the object (more on this below)
-
-// for a get() request, the coordinator requests all existing
-// versions of data for that key from the N highest-ranked reachable
-// nodes in the preference list for that key, and then waits for R
-// responses before returning the result to the client. If the
-// coordinator ends up gathering multiple versions of the data, it
-// returns all the versions it deems to be causally unrelated. The
-// divergent versions are then reconciled and the reconciled version
-// superseding the current versions is written back.
-
-// put(key, context, object)
-//	The put operation finds the nodes where
-// 	the object associated with the given key should be stored and writes the
-// 	givn object to the disk. The context is a value that is returned with a
-// 	get operation and then sent back with the put operation. The context
-// 	is always stored along with the object and is used like a cookie to verify
-// 	the validity of the object supplied in the put request
-
-// Upon receiving a put() request for a key, the coordinator generates
-// the vector clock for the new version and writes the new version
-// locally. The coordinator then sends the new version (along with
-// the new vector clock) to the N highest-ranked reachable nodes. If
-// at least W-1 nodes respond then the write is considered
-// successful.

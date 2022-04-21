@@ -38,6 +38,8 @@ func main() {
 		})
 
 	}
+
+	consistentHash.UpdateKeyStructure()
 	server.StartServer(nodeEntries, consistentHash, db)
 
 	wg.Wait()

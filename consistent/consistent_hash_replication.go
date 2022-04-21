@@ -62,6 +62,9 @@ type Consistent struct {
 	waitGroup        *sync.WaitGroup
 	// count            int64
 	sync.RWMutex
+
+	// this is a map of node Id to keyIds
+	keyStructure map[int][]int
 }
 
 // New creates a new Consistent object with NUM_OF_REPLICAS replicas for each entry.
@@ -327,16 +330,19 @@ func (c *Consistent) PutKey(borrowBody BorrowBody) nodes.Response {
 
 func (c *Consistent) KillNode() map[int][]int {
 	randomIdx := rand.Intn(len(c.members))
-	randomNode := c.Members()[randomIdx]
-	fmt.Printf("Killing Node %v \n", randomNode)
+	randomNodeString := c.Members()[randomIdx]
+	randomNode := *c.members[randomNodeString]
+	fmt.Printf("Killing Node %v \n", randomNodeString)
 
 	// kill node & remove from members list
-	nodes.KillNode(randomNode, c.members, c.waitGroup)
+	nodes.KillNode(randomNodeString, c.members, c.waitGroup)
 
 	// update hash ring
-	c.Remove(randomNode)
+	c.Remove(randomNodeString)
+	time.Sleep(1 * time.Second)
 
 	//TODO: update nodes
+	c.RedistributeFailedNodeKeys(randomNode.GetNodeId())
 
 	randomIdx2 := rand.Intn(len(c.members))
 	randomNode2 := c.Members()[randomIdx2]
@@ -354,6 +360,10 @@ func (c *Consistent) AddNode() map[int][]int {
 	// update hash ring
 	c.Add(stringId, newNode)
 
+	c.RedistributeKeysToNewNode(newNode.GetNodeId())
+	//creating of new node is async, sleep for a while to let ring structure propogate.
+	time.Sleep(1 * time.Second)
+
 	randomIdx2 := rand.Intn(len(c.members))
 	randomNode2 := c.Members()[randomIdx2]
 	return c.members[randomNode2].PrintKeyStructure()
@@ -370,6 +380,57 @@ func findMaxId(ids []string) int {
 	return max
 }
 
+func (c *Consistent) RedistributeFailedNodeKeys(removedNode int) {
+	// get the keys of failed node
+	oldKeyStructure := c.keyStructure
+	failedNodeKeys := oldKeyStructure[removedNode]
+
+	for _, key := range failedNodeKeys {
+		// we get the latest key data
+		getResponse := c.GetKey(key)
+		// update the new nodes
+		c.PutKey(BorrowBody{
+			key,
+			getResponse.Data[key].Value,
+		})
+	}
+	c.UpdateKeyStructure()
+}
+
+func (c *Consistent) RedistributeKeysToNewNode(newNodeId int) {
+	// get all keys
+	allKeys := c.GetAllKeys()
+
+	// loop through all keys
+	for key, val := range allKeys {
+		hashkey := c.hashKey(fmt.Sprint(key))
+		nodeStrings, e := c.GetN(fmt.Sprint(hashkey), c.NumberOfReplicas)
+
+		if e != nil {
+			log.Fatal(e)
+		}
+
+		for _, v := range nodeStrings {
+			// if new node needs to hold this key, call PutKey()
+			if vInt, _ := strconv.Atoi(v); vInt == newNodeId {
+				c.PutKey(BorrowBody{
+					key,
+					val.Value,
+				})
+			}
+		}
+	}
+
+	c.UpdateKeyStructure()
+}
+
+func (c *Consistent) UpdateKeyStructure() map[int][]int {
+	index := 0
+	stringIndex := c.Members()[index]
+	newKeyStructure := c.members[stringIndex].PrintKeyStructure()
+	c.keyStructure = newKeyStructure
+	return newKeyStructure
+}
 func addBook() {
 
 }

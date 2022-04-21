@@ -10,7 +10,7 @@ import (
 
 // node struct
 const (
-	NUMBER_OF_NODES = 3
+	NUMBER_OF_NODES = 10
 
 	READ  = 0
 	WRITE = 1
@@ -134,7 +134,7 @@ func (n *Node) listen(wg *sync.WaitGroup) {
 			case NEW_NODE:
 				n.onAddNewNode(update)
 			case FAILED_NODE:
-
+				n.onDeleteNode(update)
 			}
 			if update.status == NEW_NODE {
 			} else if update.status == FAILED_NODE {
@@ -446,7 +446,6 @@ func (n *Node) PrintKeyStructure() map[int][]int {
 		})
 		currentNode = currentNode.successor
 	}
-	fmt.Println("New Ring Structure: ", structure)
 	return structure
 
 }
@@ -472,6 +471,10 @@ func (n *Node) UpdateRing(node *Node, updateType int) {
 	}
 }
 
+func (n *Node) GetNodeId() int {
+	return n.id
+}
+
 /*
 Initialises NUMBER_OF_NODES.
 */
@@ -482,14 +485,14 @@ func InitaliseNodes(wg *sync.WaitGroup) map[int]*Node {
 		node := Node{
 			id:                    i,
 			Database:              map[int]DatabaseEntry{},
-			ClientRequestChannel:  make(chan Request),
-			ClientResponseChannel: make(chan Response),
-			readChannel:           make(chan ReadMessage),
-			writeChannel:          make(chan WriteMessage),
+			ClientRequestChannel:  make(chan Request, 100),
+			ClientResponseChannel: make(chan Response, 100),
+			readChannel:           make(chan ReadMessage, 100),
+			writeChannel:          make(chan WriteMessage, 100),
 			KillChannel:           make(chan bool),
-			updateChannel:         make(chan Update),
+			updateChannel:         make(chan Update, 100),
 			failed:                false,
-			replyChannel:          make(chan ReplyMessage),
+			replyChannel:          make(chan ReplyMessage, 100),
 		}
 		nodeEntries[i] = &node
 	}

@@ -2,9 +2,11 @@ import { Button, Form, Col, Row, Container } from "react-bootstrap";
 import { useEffect, useState } from "react";
 import {getBook,getAllBooks,borrowBook,addNode,removeNode, getNodes, addBook} from '../../helpers/APIs'
 import ReactJson from 'react-json-view'
+import NodeDisplay from "../../components/NodeDisplay";
 
 function Test() {
-    const [noOfNodes, setNoOfNodes] = useState();
+    const [newKeyStructure, setNewKeyStructure] = useState({});
+    const [oldKeyStructure, setOldKeyStructure] = useState({});
     const [response, setResponse] = useState()
     const [bookId, setBookId] = useState()
     const [bookTitleAdd, setBookTitleAdd] = useState('');
@@ -24,17 +26,23 @@ function Test() {
         const data = await getAllBooks()
         setResponse(data)
     }
+
     const addNodeTest = async () => {
         const data = await addNode()
-        setNoOfNodes(data.data)
+        setOldKeyStructure(newKeyStructure)
+        setNewKeyStructure(data.data)
     };
+
     const removeNodeTest = async () => {
         const data = await removeNode()
-        setNoOfNodes(data.data)
+        setOldKeyStructure(newKeyStructure)
+        setNewKeyStructure(data.data)
     };
+
     const getNodesTest = async () => {
         const data = await getNodes()
-        setNoOfNodes(data.data)
+        setOldKeyStructure(newKeyStructure)
+        setNewKeyStructure(data.data)
     };
 
     const bookTitleHandler = (e) => {
@@ -73,14 +81,18 @@ function Test() {
         <div>
             <header className="App-header">
                 <h1 className="Library-title">GoGoGoGo - Test Page</h1>
-                <div>No. of Nodes:
-                    {noOfNodes && Object.keys(noOfNodes).map((key)=>(
-                        <div key={key}> node {key}: {noOfNodes[key]}</div>
-                    ))}
-                </div>
             </header>
             <br />
-
+            <div  style={{display:'flex',width:'100%', justifyContent:'space-evenly'}}>
+                <div>
+                    <h3>Old key structure</h3>
+                    <NodeDisplay keyStructure={oldKeyStructure} />
+                </div>
+                <div>
+                    <h3>New key structure</h3>
+                    <NodeDisplay keyStructure={newKeyStructure} />
+                </div>
+            </div>
             <div className="App-header">
 
                 <Button variant="success" onClick={() => addNodeTest()}>

@@ -24,7 +24,7 @@ type BorrowBody struct {
 }
 
 type BookBody struct {
-	Title string `json:"Title"`
+	Title   string `json:"Title"`
 	Img_url string `json:"Img_url"`
 }
 
@@ -147,6 +147,49 @@ func (c *Consistent) Get(key string) (string, error) {
 	return c.circle[c.sortedHashes[i]], nil
 }
 
+// GetN returns the N closest distinct elements to the name input in the circle.
+func (c *Consistent) GetN(name string, n int) ([]string, error) {
+	c.RLock()
+	defer c.RUnlock()
+
+	if len(c.circle) == 0 {
+		return nil, ErrEmptyCircle
+	}
+
+	if len(c.Members()) < int(n) {
+		n = int(len(c.Members()))
+	}
+
+	var (
+		key   = c.hashKey(name)
+		i     = c.search(key)
+		start = i
+		res   = make([]string, 0, n)
+		elem  = c.circle[c.sortedHashes[i]]
+	)
+
+	res = append(res, elem)
+
+	if len(res) == n {
+		return res, nil
+	}
+
+	for i = start + 1; i != start; i++ {
+		if i >= len(c.sortedHashes) {
+			i = 0
+		}
+		elem = c.circle[c.sortedHashes[i]]
+		if !sliceContainsMember(res, elem) {
+			res = append(res, elem)
+		}
+		if len(res) == n {
+			break
+		}
+	}
+
+	return res, nil
+}
+
 func (c *Consistent) search(key uint32) (i int) {
 	f := func(x int) bool {
 		return c.sortedHashes[x] > key
@@ -228,8 +271,8 @@ func (c *Consistent) GetKey(key int) nodes.Response {
 	}
 	c.members[fmt.Sprint(coordinator)].ClientRequestChannel <- clientRequest
 	var data nodes.Response
+
 	// wait for reply
-	fmt.Println("---Waiting for reply---")
 	select {
 	case res := <-c.members[fmt.Sprint(coordinator)].ClientResponseChannel:
 		fmt.Printf("Manager: Received ACK from Node %d\n", clientRequest.Id)
@@ -247,13 +290,28 @@ func (c *Consistent) PutKey(borrowBody BorrowBody) nodes.Response {
 	if err != nil {
 		log.Fatal(err)
 	}
-	putRequest := nodes.Request{
-		Id:          0,
-		ClientID:    borrowBody.UserId,
-		RequestType: nodes.PUT,
-		BookID:      borrowBody.BookId,
+
+	memberList, _ := c.GetN(fmt.Sprint(hashkey), c.NumberOfReplicas)
+
+	putRequestHolders := make([]*nodes.Node, 0)
+	for _, v := range memberList {
+		// exclude coordinator
+		if v == coordinator {
+			continue
+		}
+		putRequestHolders = append(putRequestHolders, c.members[v])
 	}
+
+	putRequest := nodes.Request{
+		Id:                0,
+		ClientID:          borrowBody.UserId,
+		RequestType:       nodes.PUT,
+		BookID:            borrowBody.BookId,
+		PutRequestHolders: &putRequestHolders,
+	}
+
 	c.members[coordinator].ClientRequestChannel <- putRequest
+
 	// wait for reply
 	var response nodes.Response
 	select {
@@ -267,7 +325,7 @@ func (c *Consistent) PutKey(borrowBody BorrowBody) nodes.Response {
 	return response
 }
 
-func (c *Consistent) KillNode() int {
+func (c *Consistent) KillNode() map[int][]int {
 	randomIdx := rand.Intn(len(c.members))
 	randomNode := c.Members()[randomIdx]
 	fmt.Printf("Killing Node %v \n", randomNode)
@@ -278,10 +336,14 @@ func (c *Consistent) KillNode() int {
 	// update hash ring
 	c.Remove(randomNode)
 
-	return len(c.Members())
+	//TODO: update nodes
+
+	randomIdx2 := rand.Intn(len(c.members))
+	randomNode2 := c.Members()[randomIdx2]
+	return c.members[randomNode2].PrintKeyStructure()
 }
 
-func (c *Consistent) AddNode() int {
+func (c *Consistent) AddNode() map[int][]int {
 	maxId := findMaxId(c.Members()) + 1
 	fmt.Printf("Adding Node %v \n", maxId)
 	stringId := fmt.Sprint(maxId)
@@ -292,7 +354,9 @@ func (c *Consistent) AddNode() int {
 	// update hash ring
 	c.Add(stringId, newNode)
 
-	return len(c.Members())
+	randomIdx2 := rand.Intn(len(c.members))
+	randomNode2 := c.Members()[randomIdx2]
+	return c.members[randomNode2].PrintKeyStructure()
 }
 
 func findMaxId(ids []string) int {

@@ -73,7 +73,11 @@ function Test() {
         <div>
             <header className="App-header">
                 <h1 className="Library-title">GoGoGoGo - Test Page</h1>
-                <div>No. of Nodes: {noOfNodes}</div>
+                <div>No. of Nodes:
+                    {noOfNodes && Object.keys(noOfNodes).map((key)=>(
+                        <div key={key}> node {key}: {noOfNodes[key]}</div>
+                    ))}
+                </div>
             </header>
             <br />
 

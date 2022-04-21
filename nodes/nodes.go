@@ -2,6 +2,7 @@ package nodes
 
 import (
 	"fmt"
+	"log"
 	"sort"
 	"sync"
 	"time"
@@ -10,7 +11,6 @@ import (
 // node struct
 const (
 	NUMBER_OF_NODES = 3
-	// COORDINATOR     = 0
 
 	READ  = 0
 	WRITE = 1
@@ -23,10 +23,11 @@ const (
 )
 
 type Request struct {
-	Id          int
-	ClientID    int
-	RequestType int
-	BookID      int
+	Id                int
+	ClientID          int
+	RequestType       int
+	BookID            int
+	PutRequestHolders *[]*Node // if the request is a PUT request, the consistent hash will send a list of secondary replicas.
 }
 
 type Response struct {
@@ -163,12 +164,13 @@ func (n *Node) onReadMessage(read_msg ReadMessage) {
 		// message has traversed the ring.
 		n.onRingTraversed(read_msg)
 	} else {
-		//TODO: Check if key is even stored in local key-value datastore.
 
-		// append own entry
-		read_msg.databaseEntryMap[n.id] = n.Database[read_msg.key]
-		read_msg.sender = n.id
-		read_msg.receiver = n.successor.id
+		// append own entry if it holds the key.
+		if localEntry, err := n.Database[read_msg.key]; !err {
+			read_msg.databaseEntryMap[n.id] = localEntry
+			read_msg.sender = n.id
+			read_msg.receiver = n.successor.id
+		}
 
 		// and pass on the msg
 		n.successor.readChannel <- read_msg
@@ -257,9 +259,11 @@ func (n *Node) onClientPutRequest(client_msg Request) {
 	}
 	n.Database[client_msg.BookID] = newEntry
 
-	// broadcast to other nodes
-	// TODO: DO NOT BROADCAST TO ALL NODES. ONLY BROADCAST TO THOSE WHO NEEDS TO HOLD THE KEY.
-	for nodeID, node := range n.ring {
+	if client_msg.PutRequestHolders == nil {
+		log.Fatal("Put Request Holders cannot be nil!")
+	}
+
+	for nodeID, node := range *client_msg.PutRequestHolders {
 		if nodeID != n.id {
 			writeMsg := WriteMessage{
 				n.id,
@@ -424,13 +428,16 @@ Node 3 -> [2, 3, 4]
 func (n *Node) PrintKeyStructure() map[int][]int {
 	structure := make(map[int][]int, 0)
 	var currentNode = n
+
 	for {
 		val, _ := structure[currentNode.id]
-		fmt.Println(structure)
 		if len(val) != 0 {
 			break
 		}
 
+		if len(currentNode.Database) == 0 {
+			structure[currentNode.id] = make([]int, 0)
+		}
 		for k := range currentNode.Database {
 			structure[currentNode.id] = append(structure[currentNode.id], k)
 		}
@@ -443,7 +450,6 @@ func (n *Node) PrintKeyStructure() map[int][]int {
 	return structure
 
 }
-
 
 /*
 Called when a new node wants to join the ring, or when a successor realises a node has failed.
@@ -532,7 +538,6 @@ func KillNode(id string, nodes map[string]*Node, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-
 func isInInt(num int, list []int) bool {
 	for _, i := range list {
 		if num == i {
@@ -559,4 +564,3 @@ func findIndex(num int, list []*Node) int {
 	}
 	return -1
 }
-

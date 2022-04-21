@@ -106,7 +106,6 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 
 		})
 
-		// TODO POST route: /add
 		api.PUT("/add", func(ctx *gin.Context) {
 			var bookBody consistent.BookBody
 			err := ctx.BindJSON(&bookBody)

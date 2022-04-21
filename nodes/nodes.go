@@ -10,7 +10,7 @@ import (
 
 // node struct
 const (
-	NUMBER_OF_NODES = 10
+	NUMBER_OF_NODES = 8
 
 	READ  = 0
 	WRITE = 1

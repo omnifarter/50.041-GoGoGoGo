@@ -87,7 +87,7 @@ func InitaliseConsistent(nodeEntries map[int]*nodes.Node, wg *sync.WaitGroup) *C
 // Hash the eltkey to get the hashKey
 func (c *Consistent) eltKey(elt string, replicaIdx int) string {
 	// return elt + "|" + strconv.Itoa(idx)
-	eltkey := strconv.Itoa(replicaIdx) + elt
+	eltkey := elt + strconv.Itoa(replicaIdx)
 	fmt.Printf("Node %s has eltkey: %s and hashkey: %d\n", elt, eltkey, uint32(c.hashKey(eltkey)))
 	return eltkey
 }

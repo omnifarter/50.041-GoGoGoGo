@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"strconv"
 
@@ -177,7 +178,8 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 
 		// GET Route: /kill
 		api.GET("/kill", func(ctx *gin.Context) {
-			nodes := c.KillNode()
+			nodeId := rand.Intn(len(c.Members()))
+			nodes := c.KillNode(nodeId)
 			ctx.JSON(200, gin.H{"status": "node removed", "data": nodes})
 		})
 

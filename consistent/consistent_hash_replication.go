@@ -278,9 +278,15 @@ func (c *Consistent) GetKey(key int) nodes.Response {
 	// wait for reply
 	select {
 	case res := <-c.members[fmt.Sprint(coordinator)].ClientResponseChannel:
-		fmt.Printf("Manager: Received ACK from Node %d\n", clientRequest.Id)
-		data = res
-	case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
+		if res.RequestType == nodes.FAILED_NODE {
+			fmt.Printf("Manager: Node %d TIMEOUTs\n", *res.FailedNodeId)
+			c.KillNode(*res.FailedNodeId)
+		} else {
+			fmt.Printf("Manager: Received ACK from Node %d\n", clientRequest.Id)
+			data = res
+		}
+	case <-time.After(3 * time.Second):
+		c.KillNode(clientRequest.Id)
 		fmt.Printf("Manager: Node %d TIMEOUTs\n", clientRequest.Id)
 	}
 	// data := <-c.members[fmt.Sprint(coordinator)].ClientResponseChannel
@@ -321,32 +327,32 @@ func (c *Consistent) PutKey(borrowBody BorrowBody) nodes.Response {
 	case res := <-c.members[coordinator].ClientResponseChannel:
 		response = res
 		fmt.Printf("Manager: Received ACK from Node %d\n", putRequest.Id)
-	case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
+	case <-time.After(3 * time.Second): //TODO: Timeout should not be a constant
 		fmt.Printf("Manager: Node %d TIMEOUTs\n", putRequest.Id)
 	}
 	// res := <-c.members[coordinator].ClientResponseChannel
 	return response
 }
 
-func (c *Consistent) KillNode() map[int][]int {
-	randomIdx := rand.Intn(len(c.members))
-	randomNodeString := c.Members()[randomIdx]
-	randomNode := *c.members[randomNodeString]
-	fmt.Printf("Killing Node %v \n", randomNodeString)
+func (c *Consistent) KillNode(nodeId int) map[int][]int {
+	nodeString := c.Members()[nodeId]
+	node := *c.members[nodeString]
+	fmt.Printf("Killing Node %v \n", nodeString)
 
 	// kill node & remove from members list
-	nodes.KillNode(randomNodeString, c.members, c.waitGroup)
+	nodes.KillNode(nodeString, c.members, c.waitGroup)
 
 	// update hash ring
-	c.Remove(randomNodeString)
+	c.Remove(nodeString)
 	time.Sleep(2 * time.Second)
 
-	//TODO: update nodes
-	c.RedistributeFailedNodeKeys(randomNode.GetNodeId())
+	//update nodes on which key to hold
+	c.RedistributeFailedNodeKeys(node.GetNodeId())
 
+	//This is just to retrieve the key structure to show to the frontend
 	randomIdx2 := rand.Intn(len(c.members))
-	randomNode2 := c.Members()[randomIdx2]
-	return c.members[randomNode2].PrintKeyStructure()
+	node2 := c.Members()[randomIdx2]
+	return c.members[node2].PrintKeyStructure()
 }
 
 func (c *Consistent) AddNode() map[int][]int {
@@ -362,7 +368,6 @@ func (c *Consistent) AddNode() map[int][]int {
 
 	//creating of new node is async, sleep for a while to let ring structure propogate.
 	time.Sleep(2 * time.Second)
-	fmt.Println("THS IS THE NEW NODE", newNode)
 	c.RedistributeKeysToNewNode(newNode.GetNodeId())
 
 	randomIdx2 := rand.Intn(len(c.members))
@@ -412,9 +417,8 @@ func (c *Consistent) RedistributeFailedNodeKeys(removedNode int) {
 			}
 			// waits to receive the response
 			response := <-c.members[id].ClientResponseChannel
-
 			// replica has key-value.
-			if val, err := response.Data[key]; !err {
+			if val, err := response.Data[key]; err {
 				// we only need to take the first replica's key value
 				if currentKeyValue == nil {
 					currentKeyValue = &val
@@ -427,12 +431,19 @@ func (c *Consistent) RedistributeFailedNodeKeys(removedNode int) {
 				// this is a new replica that doesn't hold the key-value.
 				newReplica = c.members[id]
 			}
-
 		}
+		if currentKeyValue == nil {
+			log.Fatal("THERE IS NO CURRENT REPLICA HOLDING THIS KEY")
+		}
+		if newReplica == nil {
+			continue
+		}
+
 		// update the new replica with the key value pair
 		newReplica.ClientRequestChannel <- nodes.Request{
 			Id:          currentKeyValue.Clock, //repurpose Id to store clock
 			ClientID:    currentKeyValue.Value, //repurpose ClientID to store value
+			BookID:      key,
 			RequestType: nodes.WRITE,
 		}
 		<-newReplica.ClientResponseChannel // waits for ACK

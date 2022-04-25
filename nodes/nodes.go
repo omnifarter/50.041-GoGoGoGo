@@ -12,11 +12,11 @@ import (
 const (
 	NUMBER_OF_NODES = 8
 
-	READ  = 0
-	WRITE = 1
-	GET   = 2
-	PUT   = 3
-	REPLY = 4
+	READ      = 0
+	WRITE     = 1
+	GET       = 2
+	PUT       = 3
+	REPLY     = 4
 	GET_VALUE = 5
 
 	NEW_NODE    = 5
@@ -32,7 +32,9 @@ type Request struct {
 }
 
 type Response struct {
-	Data map[int]DatabaseEntry
+	Data         map[int]DatabaseEntry
+	RequestType  int
+	FailedNodeId *int
 }
 
 type DatabaseEntry struct {
@@ -138,7 +140,8 @@ func (n *Node) listen(wg *sync.WaitGroup) {
 					Data: db_map,
 				}
 			case WRITE:
-				n.Database[client_msg.BookID] = DatabaseEntry {
+				fmt.Println("Node ", n.id, ": received new key ", client_msg.BookID)
+				n.Database[client_msg.BookID] = DatabaseEntry{
 					Value: client_msg.ClientID,
 					Clock: client_msg.Id,
 				}
@@ -185,10 +188,9 @@ func (n *Node) onReadMessage(read_msg ReadMessage) {
 		// append own entry if it holds the key.
 		if localEntry, err := n.Database[read_msg.key]; !err {
 			read_msg.databaseEntryMap[n.id] = localEntry
-			read_msg.sender = n.id
-			read_msg.receiver = n.successor.id
 		}
-
+		read_msg.sender = n.id
+		read_msg.receiver = n.successor.id
 		// and pass on the msg
 		n.successor.readChannel <- read_msg
 
@@ -197,8 +199,11 @@ func (n *Node) onReadMessage(read_msg ReadMessage) {
 		case reply_msg := <-n.replyChannel:
 
 			fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
-		case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
-
+		case <-time.After(3 * time.Second): //TODO: Timeout should not be a constant
+			n.ClientResponseChannel <- Response{ // contact consistent that successor is dead.
+				RequestType:  FAILED_NODE,
+				FailedNodeId: &n.successor.id,
+			}
 			fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, read_msg.receiver)
 		}
 	}
@@ -220,7 +225,7 @@ func (n *Node) onRingTraversed(read_msg ReadMessage) {
 		}
 	}
 
-	response := Response{make(map[int]DatabaseEntry)}
+	response := Response{make(map[int]DatabaseEntry), GET, nil}
 	response.Data[read_msg.key] = dataEntry
 	n.ClientResponseChannel <- response
 }
@@ -257,7 +262,11 @@ func (n *Node) onClientGetRequest(client_msg Request) {
 	select {
 	case reply_msg := <-n.replyChannel:
 		fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
-	case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
+	case <-time.After(3 * time.Second): //TODO: Timeout should not be a constant
+		n.ClientResponseChannel <- Response{ // contact consistent that successor is dead.
+			RequestType:  FAILED_NODE,
+			FailedNodeId: &n.successor.id,
+		}
 		fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, readMsg.receiver) //TODO:this shouldn't run if ACK is received
 		// node failed -> rehash
 	}
@@ -295,15 +304,18 @@ func (n *Node) onClientPutRequest(client_msg Request) {
 			case reply_msg := <-n.replyChannel:
 
 				fmt.Printf("Node %d: Received ACK from Node %d\n", n.id, reply_msg.sender)
-			case <-time.After(1 * time.Second): //TODO: Timeout should not be a constant
-
+			case <-time.After(3 * time.Second): //TODO: Timeout should not be a constant
+				n.ClientResponseChannel <- Response{ // contact consistent that successor is dead.
+					RequestType:  FAILED_NODE,
+					FailedNodeId: &n.successor.id,
+				}
 				fmt.Printf("Node %d: Node %d TIMEOUTs\n", n.id, writeMsg.receiver)
 			}
 		}
 	}
 
 	// Node replies ACK client with an empty Response.
-	n.ClientResponseChannel <- Response{}
+	n.ClientResponseChannel <- Response{RequestType: PUT}
 }
 
 /*

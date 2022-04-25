@@ -61,6 +61,7 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 				book.Img_url = bookData.Img_url
 				if databaseEntry.Value == -1 { // no user
 					book.Borrowed = false
+					book.UserId = -1
 				} else { // get user data
 					var userData User
 					book.Borrowed = true
@@ -95,6 +96,7 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 			book.Img_url = bookData.Img_url
 			if data.Data[val].Value == -1 { // no user
 				book.Borrowed = false
+				book.UserId = -1
 			} else { // get user data
 				var userData User
 				book.Borrowed = true

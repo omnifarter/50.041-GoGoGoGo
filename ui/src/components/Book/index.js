@@ -3,7 +3,7 @@ import { Button } from 'react-bootstrap'
 
 import './Book.css';
 
-const Book = ({ book, openBook }) => {
+const Book = ({ book, openBook, ...others }) => {
   return (
     <div className='Book-item'>
       <img className='Book-cover' src={book.Img_url} alt={`Book Cover of ${book.Title}`} />

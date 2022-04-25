@@ -1,26 +1,16 @@
-import { Button, Form, Col, Row, Container } from "react-bootstrap";
+import { Tabs, Tab, Button, Row, Col,Container } from 'react-bootstrap';
 import { useEffect, useState } from "react";
 import {getBook,getAllBooks,borrowBook,addNode,removeNode, getNodes, addBook} from '../../helpers/APIs'
 import ReactJson from 'react-json-view'
 import NodeDisplay from "../../components/NodeDisplay";
+import GetBook from '../../components/Testing/GetBook';
+import BorrowBook from '../../components/Testing/BorrowBook';
 
 function Test() {
     const [newKeyStructure, setNewKeyStructure] = useState({});
     const [oldKeyStructure, setOldKeyStructure] = useState({});
     const [response, setResponse] = useState()
-    const [bookId, setBookId] = useState()
-    const [bookTitleAdd, setBookTitleAdd] = useState('');
-    const [bookURLAdd, setBookURLAdd] = useState('');
-    const [userId, setUserId] = useState()
-
-    const getBookTest = async () => {
-        const data = await getBook(bookId)
-        setResponse(data)
-    }
-
-    const borrowBookTest = async () => {
-        await borrowBook(bookId,userId)
-    }
+    const [tab, setTab] = useState('get')
 
     const getAllBooksTest = async () => {
         const data = await getAllBooks()
@@ -45,33 +35,7 @@ function Test() {
         setNewKeyStructure(data.data)
     };
 
-    const bookTitleHandler = (e) => {
-        setBookTitleAdd(e.target.value);
-    };
-
-    const userIdHandler = (e) => {
-        setUserId(e.target.value);
-    };
-
-    const bookURLHandler = (e) => {
-        setBookURLAdd(e.target.value);
-    };
     
-    const addBookHandler = async (e) => {
-        e.preventDefault();
-        setBookTitleAdd('');
-        setBookURLAdd('');
-        await addBook(bookTitleAdd,bookURLAdd)
-
-    }
-
-    const bookIdHandler = (e) => {
-        setBookId(e.target.value);
-    };
-    const removeBookHandler = (e) => {
-        e.preventDefault();
-        return alert("Book Id: " + bookId)
-    };
 
     useEffect(() => {
         getNodesTest()
@@ -104,63 +68,26 @@ function Test() {
             </div>
             <Container>
                 <Row>
-                    <Col>
-                        <h3 className="Library-title">Add Book!</h3>
-                        <div>
-                            <Form onSubmit={addBookHandler}>
-                                <Form.Group className="mb-6">
-                                    <Form.Label>Book Title</Form.Label>
-                                    <Form.Control type="text" placeholder="Book Title" value={bookTitleAdd} onChange={bookTitleHandler} required/>
-                                </Form.Group>
-                                <Form.Group className="mb-6">
-                                    <Form.Label>Book Image URL</Form.Label>
-                                    <Form.Control type="text" placeholder="www.bookimageurl.com" value={bookURLAdd} onChange={bookURLHandler} required/>
-                                </Form.Group>
+                    <Col style={{width:'50%'}}>
+                        <Tabs activeKey={tab} onSelect={(k) => setTab(k)}>
+                            <Tab eventKey="get" title="Get Book">
+                                <GetBook setResponse={setResponse} />
+                            </Tab>
+                            <Tab eventKey='borrow' title="Borrow Book">
+                            <BorrowBook setResponse={setResponse} />
+                            </Tab>
+                            <Tab eventKey='getAll' title="Get All Books">
+                                <h3 className="Library-title">Get All Books</h3>
                                 <br />
-                                <Button variant="info" type="submit">
-                                    Add Book
-                                </Button>{" "}
-                            </Form>
-                        </div>
+                                <Button onClick={getAllBooksTest} style={{width:'100%'}}>Get all books</Button>
+                            </Tab>
+                        </Tabs>
                     </Col>
-                    <Col>
-                        <h3 className="Library-title">Remove Book!</h3>
-                        <div>
-                            <Form onSubmit={removeBookHandler}>
-                                <Form.Group className="mb-6">
-                                    <Form.Label>Book ID</Form.Label>
-                                    <Form.Control type="number" placeholder="1"  onChange={bookIdHandler} required/>
-                                </Form.Group>
-                                <br />
-                                <Form.Group className="mb-6">
-                                    <Form.Label>User ID</Form.Label>
-                                    <Form.Control type="number" placeholder="1"  onChange={userIdHandler} required/>
-                                </Form.Group>
-                                <br />
-                                <Button variant="info" type="submit">
-                                    Remove Book
-                                </Button>{" "}
-                            </Form>
-                        </div>
-                    </Col>
-                </Row>
-                <br />
-                <Row>
-                    <h3 className="Library-title">Testing Buttons</h3>
-                    <Col>
-                        <Button onClick={getBookTest}>Get Book Value</Button>
-                    </Col>
-                    <Col>
-                        <Button onClick={getAllBooksTest}>Get all books value</Button>
-                    </Col>
-                    <Col>
-                        <Button onClick={borrowBookTest}>Borrow Book</Button>
+                    <Col style={{width:'50%'}}>
+                        <ReactJson src={response} />
                     </Col>
                 </Row>
             </Container>
-            <br />
-            <br />
-            <ReactJson src={response} />
 
         </div>
     );

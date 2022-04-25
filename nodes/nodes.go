@@ -186,7 +186,7 @@ func (n *Node) onReadMessage(read_msg ReadMessage) {
 	} else {
 
 		// append own entry if it holds the key.
-		if localEntry, err := n.Database[read_msg.key]; !err {
+		if localEntry, err := n.Database[read_msg.key]; err {
 			read_msg.databaseEntryMap[n.id] = localEntry
 		}
 		read_msg.sender = n.id
@@ -281,7 +281,10 @@ func (n *Node) onClientPutRequest(client_msg Request) {
 	newValue := client_msg.ClientID
 	newEntry := DatabaseEntry{
 		newValue,
-		n.Database[client_msg.BookID].Clock + 1,
+		1,
+	}
+	if n.Database[client_msg.BookID].Clock > 0 {
+		newEntry.Clock = n.Database[client_msg.BookID].Clock + 1
 	}
 	n.Database[client_msg.BookID] = newEntry
 

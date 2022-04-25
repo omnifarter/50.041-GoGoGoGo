@@ -26,7 +26,6 @@ func main() {
 
 	var bookIds []server.Book
 	db.Unscoped().Find(&bookIds)
-
 	for _, book := range bookIds {
 		_, err := consistentHash.Get(fmt.Sprint(book.ID))
 		if err != nil {

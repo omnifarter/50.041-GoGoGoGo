@@ -256,21 +256,24 @@ func (c *Consistent) GetAllKeys() map[int]nodes.DatabaseEntry {
 	for key := range allKeys {
 		entry := c.GetKey(key)
 		allKeys[key] = entry.Data[key]
+		fmt.Println("Key ", key, "has value ", entry.Data[key])
 	}
 	// wait for reply
+	fmt.Println(allKeys)
 	return allKeys
 }
 
 func (c *Consistent) GetKey(key int) nodes.Response {
-	clientRequest := nodes.Request{
-		Id:          2,
-		ClientID:    0,
-		RequestType: nodes.GET,
-		BookID:      key,
-	}
 	coordinator, err := c.Get(fmt.Sprint(key))
 	if err != nil {
 		log.Fatal(err)
+	}
+	coordinatorId, _ := strconv.Atoi(coordinator)
+	clientRequest := nodes.Request{
+		Id:          coordinatorId, // id doesn't matter either
+		ClientID:    -1,            // client id doesn't matter
+		RequestType: nodes.GET,
+		BookID:      key,
 	}
 	c.members[fmt.Sprint(coordinator)].ClientRequestChannel <- clientRequest
 	var data nodes.Response
@@ -326,7 +329,7 @@ func (c *Consistent) PutKey(borrowBody BorrowBody) nodes.Response {
 	select {
 	case res := <-c.members[coordinator].ClientResponseChannel:
 		response = res
-		fmt.Printf("Manager: Received ACK from Node %d\n", putRequest.Id)
+		fmt.Printf("Manager: Received ACK from Node %v\n", coordinator)
 	case <-time.After(3 * time.Second): //TODO: Timeout should not be a constant
 		fmt.Printf("Manager: Node %d TIMEOUTs\n", putRequest.Id)
 	}

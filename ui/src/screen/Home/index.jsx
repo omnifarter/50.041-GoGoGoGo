@@ -70,13 +70,16 @@ function Home() {
       <div className="App">
         <Login show={user===null} onSetUser={(id)=>setUser(id)} />
         <header className="App-header">
-          <h1 className='Library-title'>GoGoGoGo - Digital Library</h1>
-          <Button variant="info" onClick={() => openMyBooks()}>View My Books</Button>{' '}
+          <div style={{display:"flex"}}>
+            <img src="https://cdn-icons.flaticon.com/png/512/3389/premium/3389081.png?token=exp=1650885181~hmac=f24fcd79094309e45141ea043ab7ae48" className="App-Icon"/>
+            <h1 className='Library-title'>GoGoGoGo - Digital Library</h1>
+          </div>
+          <Button variant="outline-primary" onClick={() => openMyBooks()}>View My Books</Button>{' '}
         </header>
   
         <div className="Books-library">
-          <h4>View All Available Books</h4>
-          <div className='All-books'>  
+          <h4>All Available Books</h4>
+          <div style={{display:'grid',gridTemplateColumns:'600px 600px',columnGap:'12px',rowGap:'12px'}}>  
             {books && books.map((b) => !b.Borrowed && <Book key={b.Id} book={b} openBook={openBook} />)}
           </div>
         </div>

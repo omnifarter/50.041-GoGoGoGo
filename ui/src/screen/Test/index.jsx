@@ -57,9 +57,9 @@ function Test() {
                     <NodeDisplay keyStructure={newKeyStructure} />
                 </div>
             </div>
-            <div className="App-header">
+            <div style={{textAlign:'center',margin:'24px 0'}}>
 
-                <Button variant="success" onClick={() => addNodeTest()}>
+                <Button variant="success" style={{marginRight:'12px'}} onClick={() => addNodeTest()}>
                     Add Node
                 </Button>{" "}
                 <Button variant="danger" onClick={() => removeNodeTest()}>

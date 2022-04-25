@@ -8,17 +8,16 @@ const Borrow = ({ show, book, closeBorrow, confirmBorrow }) => {
   return (
     <Modal show={show} onHide={closeBorrow}>
       <Modal.Header>
-        <Modal.Title>Borrow Book?</Modal.Title>
+        <Modal.Title>{book.Title}</Modal.Title>
       </Modal.Header>
 
       <Modal.Body style={{margin:'auto',textAlign:'center'}}>
-        <p>{`Book Title: ${book.Title}`}</p>
-        <img src={book.Img_url}/>
+        <img src={book.Img_url} style={{maxWidth:'300px'}}/>
       </Modal.Body>
 
       <Modal.Footer>
-        <Button variant="secondary" onClick={closeBorrow}>Cancel</Button>
-        <Button variant="primary" onClick={() => confirmBorrow()}>Confirm</Button>
+        <Button variant="primary" style={{width:'100%'}} onClick={() => confirmBorrow()}>Borrow</Button>
+        <Button variant="secondary" style={{width:'100%'}} onClick={closeBorrow}>Cancel</Button>
       </Modal.Footer>
     </Modal>
   )

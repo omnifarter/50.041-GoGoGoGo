@@ -17,6 +17,7 @@ const (
 	GET   = 2
 	PUT   = 3
 	REPLY = 4
+	GET_VALUE = 5
 
 	NEW_NODE    = 5
 	FAILED_NODE = 6
@@ -126,6 +127,22 @@ func (n *Node) listen(wg *sync.WaitGroup) {
 
 			case PUT:
 				n.onClientPutRequest(client_msg)
+			case GET_VALUE:
+				db_map := make(map[int]DatabaseEntry)
+				// if key is found, add the key and value to the new ma[]
+				if value, found := n.Database[client_msg.BookID]; found {
+					db_map[client_msg.BookID] = value
+				}
+				// send the db map back; can be empty or with the found value for the key
+				n.ClientResponseChannel <- Response{
+					Data: db_map,
+				}
+			case WRITE:
+				n.Database[client_msg.BookID] = DatabaseEntry {
+					Value: client_msg.ClientID,
+					Clock: client_msg.Id,
+				}
+				n.ClientResponseChannel <- Response{} // ACK
 			}
 
 		// listening for update to ring structure
@@ -263,11 +280,11 @@ func (n *Node) onClientPutRequest(client_msg Request) {
 		log.Fatal("Put Request Holders cannot be nil!")
 	}
 
-	for nodeID, node := range *client_msg.PutRequestHolders {
-		if nodeID != n.id {
+	for _, node := range *client_msg.PutRequestHolders {
+		if node.id != n.id {
 			writeMsg := WriteMessage{
 				n.id,
-				nodeID,
+				node.id,
 				client_msg.BookID,
 				newEntry,
 			}
@@ -377,13 +394,13 @@ func CreateNode(id int, nodes map[string]*Node, wg *sync.WaitGroup) *Node {
 	newNode := Node{
 		id:                    id,
 		Database:              map[int]DatabaseEntry{},
-		ClientRequestChannel:  make(chan Request),
-		ClientResponseChannel: make(chan Response),
-		readChannel:           make(chan ReadMessage),
-		writeChannel:          make(chan WriteMessage),
-		replyChannel:          make(chan ReplyMessage),
-		updateChannel:         make(chan Update),
-		KillChannel:           make(chan bool),
+		ClientRequestChannel:  make(chan Request, 100),
+		ClientResponseChannel: make(chan Response, 100),
+		readChannel:           make(chan ReadMessage, 100),
+		writeChannel:          make(chan WriteMessage, 100),
+		replyChannel:          make(chan ReplyMessage, 100),
+		updateChannel:         make(chan Update, 100),
+		KillChannel:           make(chan bool, 100),
 		failed:                false,
 	}
 

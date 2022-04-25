@@ -339,7 +339,7 @@ func (c *Consistent) KillNode() map[int][]int {
 
 	// update hash ring
 	c.Remove(randomNodeString)
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	//TODO: update nodes
 	c.RedistributeFailedNodeKeys(randomNode.GetNodeId())
@@ -360,9 +360,10 @@ func (c *Consistent) AddNode() map[int][]int {
 	// update hash ring
 	c.Add(stringId, newNode)
 
-	c.RedistributeKeysToNewNode(newNode.GetNodeId())
 	//creating of new node is async, sleep for a while to let ring structure propogate.
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
+	fmt.Println("THS IS THE NEW NODE", newNode)
+	c.RedistributeKeysToNewNode(newNode.GetNodeId())
 
 	randomIdx2 := rand.Intn(len(c.members))
 	randomNode2 := c.Members()[randomIdx2]
@@ -386,13 +387,56 @@ func (c *Consistent) RedistributeFailedNodeKeys(removedNode int) {
 	failedNodeKeys := oldKeyStructure[removedNode]
 
 	for _, key := range failedNodeKeys {
-		// we get the latest key data
-		getResponse := c.GetKey(key)
-		// update the new nodes
-		c.PutKey(BorrowBody{
-			key,
-			getResponse.Data[key].Value,
-		})
+		// OLD IMPLEMENTATION
+		// getResponse := c.GetKey(key)
+		// // update the new nodes
+		// c.PutKey(BorrowBody{
+		// 	key,
+		// 	getResponse.Data[key].Value,
+		// })
+
+		// NEW IMPLEMENTATION
+		hashkey := c.hashKey(fmt.Sprint(key))
+		currentReplicas, _ := c.GetN(fmt.Sprint(hashkey), c.NumberOfReplicas)
+		var newReplica *nodes.Node
+		var currentKeyValue *nodes.DatabaseEntry
+		fmt.Println("THIS IS THE CURRENT REPLICAS for KEY ", key, currentReplicas)
+		for _, id := range currentReplicas {
+			// we first ask the replica if it holds the key-value.
+			c.members[id].ClientRequestChannel <- nodes.Request{
+				Id:                0, // doesn't matter
+				ClientID:          0, // doesn't matter
+				RequestType:       nodes.GET_VALUE,
+				BookID:            key,
+				PutRequestHolders: nil,
+			}
+			// waits to receive the response
+			response := <-c.members[id].ClientResponseChannel
+
+			// replica has key-value.
+			if val, err := response.Data[key]; !err {
+				// we only need to take the first replica's key value
+				if currentKeyValue == nil {
+					currentKeyValue = &val
+				} else if currentKeyValue.Value != val.Value {
+					if currentKeyValue.Clock < val.Clock {
+						currentKeyValue = &val
+					}
+				}
+			} else {
+				// this is a new replica that doesn't hold the key-value.
+				newReplica = c.members[id]
+			}
+
+		}
+		// update the new replica with the key value pair
+		newReplica.ClientRequestChannel <- nodes.Request{
+			Id:          currentKeyValue.Clock, //repurpose Id to store clock
+			ClientID:    currentKeyValue.Value, //repurpose ClientID to store value
+			RequestType: nodes.WRITE,
+		}
+		<-newReplica.ClientResponseChannel // waits for ACK
+
 	}
 	c.UpdateKeyStructure()
 }

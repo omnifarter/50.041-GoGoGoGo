@@ -5,6 +5,7 @@ import ReactJson from 'react-json-view'
 import NodeDisplay from "../../components/NodeDisplay";
 import GetBook from '../../components/Testing/GetBook';
 import BorrowBook from '../../components/Testing/BorrowBook';
+import MultipleBorrow from '../../components/Testing/MultipleBorrow';
 
 function Test() {
     const [newKeyStructure, setNewKeyStructure] = useState({});
@@ -34,9 +35,7 @@ function Test() {
         setOldKeyStructure(newKeyStructure)
         setNewKeyStructure(data.data)
     };
-
     
-
     useEffect(() => {
         getNodesTest()
     }, [])
@@ -80,6 +79,9 @@ function Test() {
                                 <h3 className="Library-title">Get All Books</h3>
                                 <br />
                                 <Button onClick={getAllBooksTest} style={{width:'100%'}}>Get all books</Button>
+                            </Tab>
+                            <Tab eventKey='multipleBorrow' title="Multiple Borrow">
+                                <MultipleBorrow setResponse={setResponse} />
                             </Tab>
                         </Tabs>
                     </Col>

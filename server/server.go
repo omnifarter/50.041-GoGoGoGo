@@ -156,6 +156,8 @@ func StartServer(nodeEntries map[int]*nodes.Node, c *consistent.Consistent, db *
 				println("Error:", err.Error())
 			}
 
+			println("borrow - book", borrowBody.BookId)
+			println("borrow - user", borrowBody.UserId)
 			c.PutKey(borrowBody)
 
 			ctx.JSON(200, gin.H{"status": "approved"})
